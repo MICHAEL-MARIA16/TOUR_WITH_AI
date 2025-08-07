@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+.env
+venv/
+
+# Node
+node_modules/
+dist/
+.env.local
+
+# Logs and Cache
+*.log
+.cache/
+.cache-loader/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
