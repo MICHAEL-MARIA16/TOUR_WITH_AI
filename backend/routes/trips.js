@@ -1,783 +1,422 @@
 // backend/routes/trips.js
 const express = require('express');
 const router = express.Router();
-const {
-  generateTrip,
-  getTripSuggestions,
-  optimizeTrip,
-  getTravelMatrix,
-  getUserTrips,
-  getTripById,
-  analyzeTrip
-} = require('../controllers/tripController');
+const tripController = require('../controllers/tripController');
 
-// Request logging middleware
-router.use((req, res, next) => {
+// Middleware for request timing and logging
+const addRequestTiming = (req, res, next) => {
+  req.startTime = Date.now();
   console.log(`Trip API: ${req.method} ${req.originalUrl} - ${new Date().toISOString()}`);
   next();
-});
-
-// Input validation middleware
-const validateTripGeneration = (req, res, next) => {
-  const { preferences } = req.body;
-  
-  if (!preferences) {
-    return res.status(400).json({
-      success: false,
-      message: 'Preferences object is required',
-      required_fields: ['interests', 'budget', 'timeConstraints']
-    });
-  }
-  
-  if (preferences.budget && (typeof preferences.budget !== 'number' || preferences.budget < 0)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Budget must be a positive number'
-    });
-  }
-  
-  if (preferences.interests && !Array.isArray(preferences.interests)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Interests must be an array'
-    });
-  }
-  
-  if (preferences.startLocation) {
-    const { latitude, longitude } = preferences.startLocation;
-    if (!latitude || !longitude || 
-        typeof latitude !== 'number' || typeof longitude !== 'number' ||
-        latitude < -90 || latitude > 90 || 
-        longitude < -180 || longitude > 180) {
-      return res.status(400).json({
-        success: false,
-        message: 'Valid start location coordinates required'
-      });
-    }
-  }
-  
-  next();
 };
 
-const validateOptimizationRequest = (req, res, next) => {
-  const { places } = req.body;
-  
-  if (!places || !Array.isArray(places)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Places array is required'
-    });
-  }
-  
-  if (places.length < 2) {
-    return res.status(400).json({
-      success: false,
-      message: 'At least 2 places required for optimization'
-    });
-  }
-  
-  if (places.length > 20) {
-    return res.status(400).json({
-      success: false,
-      message: 'Maximum 20 places allowed for optimization'
-    });
-  }
-  
-  next();
-};
+// Apply timing middleware to all trip routes
+router.use(addRequestTiming);
 
-const validateMatrixRequest = (req, res, next) => {
-  const { places } = req.body;
-  
-  if (!places || !Array.isArray(places)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Places array is required'
-    });
-  }
-  
-  if (places.length < 2) {
-    return res.status(400).json({
-      success: false,
-      message: 'At least 2 places required for matrix calculation'
-    });
-  }
-  
-  if (places.length > 12) {
-    return res.status(400).json({
-      success: false,
-      message: 'Maximum 12 places allowed for matrix calculation'
-    });
-  }
-  
-  next();
-};
-
-// Rate limiting for intensive operations
-const intensiveOperationLimiter = (req, res, next) => {
-  // Add rate limiting logic here if needed
-  // For now, just pass through
-  next();
-};
-
-/**
- * CORE TRIP PLANNING ROUTES
- */
-
-// POST /api/trips/generate - Generate optimized trip using greedy algorithm
-// Body: { 
-//   preferences: { interests, budget, timeConstraints, startLocation, accessibility },
-//   constraints: { maxPlaces, strategy },
-//   userId?: string,
-//   tripName?: string 
-// }
-router.post('/generate', 
-  validateTripGeneration, 
-  intensiveOperationLimiter, 
-  generateTrip
-);
-
-// GET /api/trips/suggestions - Get AI-powered trip suggestions
-// Query: city, interests, duration, budget, groupType, season
-router.get('/suggestions', (req, res, next) => {
-  // Convert comma-separated interests to array
-  if (req.query.interests && typeof req.query.interests === 'string') {
-    req.query.interests = req.query.interests.split(',').map(s => s.trim());
-  }
-  next();
-}, getTripSuggestions);
+// POST /api/trips/generate - Generate optimized trip with AI recommendations
+// Body: { preferences: {...}, constraints: {...}, algorithm?: string, startLocation?: object }
+router.post('/generate', tripController.generateTrip);
 
 // POST /api/trips/optimize - Optimize existing trip route
-// Body: { 
-//   places: array, 
-//   startLocation?: object, 
-//   constraints?: object, 
-//   optimizationGoal?: string 
-// }
-router.post('/optimize', 
-  validateOptimizationRequest, 
-  intensiveOperationLimiter, 
-  optimizeTrip
-);
+// Body: { places: [...], constraints?: {...}, algorithm?: string, currentRoute?: [...] }
+router.post('/optimize', tripController.optimizeTrip);
 
-// POST /api/trips/matrix - Get travel time/distance matrix
-// Body: { places: array }
-router.post('/matrix', 
-  validateMatrixRequest, 
-  getTravelMatrix
-);
+// GET /api/trips/suggestions - Get AI-powered trip suggestions
+// Query: { currentLocation?, interests?, duration?, budget?, groupSize?, accessibility? }
+router.get('/suggestions', tripController.getTripSuggestions);
 
-// POST /api/trips/analyze - Analyze trip performance and get recommendations
-// Body: { places: array, constraints?: object }
-router.post('/analyze', (req, res, next) => {
-  const { places } = req.body;
-  
-  if (!places || !Array.isArray(places) || places.length === 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Places array is required for analysis'
-    });
-  }
-  
-  next();
-}, analyzeTrip);
+// POST /api/trips/matrix - Calculate travel distance/time matrix between places
+// Body: { placeIds: [...] }
+router.post('/matrix', tripController.calculateTravelMatrix);
 
-/**
- * TRIP MANAGEMENT ROUTES
- */
-
-// GET /api/trips/user/:userId - Get all trips for a user
-// Query: status, sortBy, sortOrder, limit, page
-router.get('/user/:userId', (req, res, next) => {
-  const { userId } = req.params;
-  
-  if (!userId) {
-    return res.status(400).json({
-      success: false,
-      message: 'User ID is required'
-    });
-  }
-  
-  next();
-}, getUserTrips);
-
-// GET /api/trips/:tripId - Get specific trip by ID
-router.get('/:tripId', (req, res, next) => {
-  const { tripId } = req.params;
-  
-  if (!tripId || tripId.length < 10) {
-    return res.status(400).json({
-      success: false,
-      message: 'Valid trip ID is required'
-    });
-  }
-  
-  next();
-}, getTripById);
-
-// PUT /api/trips/:tripId - Update trip details
-router.put('/:tripId', async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    const updateData = req.body;
-    
-    // Import Trip model
-    const { Trip } = require('../models/Trip');
-    
-    const trip = await Trip.findById(tripId);
-    if (!trip) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trip not found'
-      });
-    }
-    
-    // Update allowed fields
-    const allowedUpdates = ['name', 'description', 'tags', 'schedule', 'preferences'];
-    allowedUpdates.forEach(field => {
-      if (updateData[field] !== undefined) {
-        trip[field] = updateData[field];
+// GET /api/trips/algorithms - Get available optimization algorithms with descriptions
+router.get('/algorithms', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      algorithms: {
+        'advanced-greedy': {
+          name: 'Advanced Greedy',
+          description: 'Fast optimization with multi-criteria selection',
+          bestFor: 'Quick results, up to 20 places',
+          timeComplexity: 'O(n²)',
+          features: ['Fast execution', 'Multi-criteria scoring', 'Good for most cases']
+        },
+        'genetic': {
+          name: 'Genetic Algorithm',
+          description: 'Evolutionary optimization for complex problems',
+          bestFor: 'Medium to large problems, 8-25 places',
+          timeComplexity: 'O(generations × population × n)',
+          features: ['Global optimization', 'Handles local optima', 'Configurable parameters']
+        },
+        'dynamicProgramming': {
+          name: 'Dynamic Programming TSP',
+          description: 'Optimal solution using Held-Karp algorithm',
+          bestFor: 'Small problems, up to 12 places',
+          timeComplexity: 'O(n² × 2ⁿ)',
+          features: ['Guaranteed optimal', 'Exact solution', 'Memory intensive']
+        },
+        'simulatedAnnealing': {
+          name: 'Simulated Annealing',
+          description: 'Temperature-based optimization to escape local optima',
+          bestFor: 'Medium problems, good solution quality',
+          timeComplexity: 'O(iterations × n)',
+          features: ['Escapes local optima', 'Probabilistic acceptance', 'Tunable cooling']
+        },
+        'antColony': {
+          name: 'Ant Colony Optimization',
+          description: 'Nature-inspired optimization using pheromone trails',
+          bestFor: 'Complex routing problems, 15+ places',
+          timeComplexity: 'O(iterations × ants × n²)',
+          features: ['Bio-inspired', 'Good for TSP variants', 'Parallel processing']
+        },
+        'multiObjective': {
+          name: 'Multi-Objective NSGA-II',
+          description: 'Optimize multiple criteria simultaneously',
+          bestFor: 'When balancing multiple objectives',
+          timeComplexity: 'O(generations × population × objectives × n)',
+          features: ['Pareto front solutions', 'Multiple objectives', 'Trade-off analysis']
+        }
+      },
+      recommendations: {
+        small: ['advanced-greedy', 'dynamicProgramming'],
+        medium: ['genetic', 'simulatedAnnealing'],
+        large: ['antColony', 'genetic'],
+        multiCriteria: ['multiObjective', 'advanced-greedy'],
+        fast: ['advanced-greedy'],
+        optimal: ['dynamicProgramming', 'genetic']
       }
-    });
-    
-    await trip.save();
-    
+    }
+  });
+});
+
+// GET /api/trips/templates - Get predefined trip templates
+router.get('/templates', async (req, res) => {
+  try {
+    const templates = [
+      {
+        id: 'cultural-heritage',
+        name: 'Cultural Heritage Tour',
+        description: 'Explore ancient temples, palaces, and heritage sites',
+        duration: 720, // 12 hours
+        categories: ['temple', 'palace', 'heritage'],
+        estimatedCost: 500,
+        groupType: 'family',
+        highlights: ['Ancient architecture', 'Cultural immersion', 'Historical significance']
+      },
+      {
+        id: 'nature-adventure',
+        name: 'Nature & Adventure',
+        description: 'Hill stations, beaches, and natural wonders',
+        duration: 960, // 16 hours (2 days)
+        categories: ['hill-station', 'beach', 'nature', 'wildlife'],
+        estimatedCost: 800,
+        groupType: 'adventure',
+        highlights: ['Scenic beauty', 'Adventure activities', 'Wildlife spotting']
+      },
+      {
+        id: 'spiritual-journey',
+        name: 'Spiritual Journey',
+        description: 'Sacred temples and spiritual experiences',
+        duration: 480, // 8 hours
+        categories: ['temple'],
+        estimatedCost: 300,
+        groupType: 'spiritual',
+        highlights: ['Peace and tranquility', 'Spiritual awakening', 'Sacred rituals']
+      },
+      {
+        id: 'beach-hopping',
+        name: 'Coastal Paradise',
+        description: 'Beautiful beaches and coastal attractions',
+        duration: 600, // 10 hours
+        categories: ['beach', 'nature'],
+        estimatedCost: 600,
+        groupType: 'leisure',
+        highlights: ['Beach activities', 'Coastal cuisine', 'Water sports']
+      },
+      {
+        id: 'quick-getaway',
+        name: 'Quick Weekend Getaway',
+        description: 'Perfect for a short 1-day trip',
+        duration: 360, // 6 hours
+        categories: ['temple', 'palace'],
+        estimatedCost: 400,
+        groupType: 'couple',
+        highlights: ['Time-efficient', 'Popular attractions', 'Easy accessibility']
+      }
+    ];
+
     res.status(200).json({
       success: true,
-      data: trip,
-      message: 'Trip updated successfully'
+      data: { templates }
     });
-    
+
   } catch (error) {
-    console.error('Update trip error:', error);
+    console.error('Error fetching trip templates:', error);
     res.status(500).json({
       success: false,
-      message: 'Error updating trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: 'Error fetching trip templates'
     });
   }
 });
 
-// DELETE /api/trips/:tripId - Delete trip
-router.delete('/:tripId', async (req, res) => {
+// GET /api/trips/stats - Get trip planning statistics
+router.get('/stats', async (req, res) => {
   try {
-    const { tripId } = req.params;
-    const { userId } = req.query; // Optional: verify ownership
+    const Place = require('../models/Place');
     
-    const { Trip } = require('../models/Trip');
-    
-    let query = { _id: tripId };
-    if (userId) {
-      query.userId = userId;
-    }
-    
-    const trip = await Trip.findOneAndDelete(query);
-    
-    if (!trip) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trip not found or not authorized'
-      });
-    }
-    
+    const [
+      totalPlaces,
+      placesByCategory,
+      placesByState,
+      avgRating,
+      freeEntryPlaces
+    ] = await Promise.all([
+      Place.countDocuments(),
+      Place.aggregate([
+        { $group: { _id: '$category', count: { $sum: 1 } } }
+      ]),
+      Place.aggregate([
+        { $group: { _id: '$state', count: { $sum: 1 } } }
+      ]),
+      Place.aggregate([
+        { $group: { _id: null, avgRating: { $avg: '$rating' } } }
+      ]),
+      Place.countDocuments({ 'entryFee.indian': 0 })
+    ]);
+
     res.status(200).json({
       success: true,
-      message: 'Trip deleted successfully',
-      deletedTrip: {
-        id: trip._id,
-        name: trip.name
+      data: {
+        overview: {
+          totalPlaces,
+          averageRating: avgRating[0]?.avgRating?.toFixed(1) || '0',
+          freeEntryPlaces,
+          coverageStates: placesByState.length
+        },
+        distribution: {
+          byCategory: placesByCategory.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          byState: placesByState.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {})
+        },
+        algorithms: {
+          available: 6,
+          optimal: ['dynamicProgramming'],
+          fast: ['advanced-greedy'],
+          scalable: ['genetic', 'antColony']
+        }
       }
     });
-    
+
   } catch (error) {
-    console.error('Delete trip error:', error);
+    console.error('Error fetching trip stats:', error);
     res.status(500).json({
       success: false,
-      message: 'Error deleting trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: 'Error fetching statistics'
     });
   }
 });
 
-/**
- * TRIP PROGRESS AND TRACKING ROUTES
- */
-
-// POST /api/trips/:tripId/start - Start a trip
-router.post('/:tripId/start', async (req, res) => {
+// POST /api/trips/validate - Validate trip constraints and feasibility
+router.post('/validate', async (req, res) => {
   try {
-    const { tripId } = req.params;
-    const { startLocation } = req.body;
-    
-    const { Trip } = require('../models/Trip');
-    
-    const trip = await Trip.findById(tripId);
-    if (!trip) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trip not found'
-      });
-    }
-    
-    if (trip.status !== 'planned') {
+    const { places, constraints = {} } = req.body;
+    const Place = require('../models/Place');
+
+    if (!places || !Array.isArray(places) || places.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Trip must be in planned status to start'
+        message: 'Places array is required'
       });
     }
-    
-    trip.status = 'active';
-    trip.progress.startedAt = new Date();
-    trip.progress.lastUpdated = new Date();
-    
-    if (startLocation) {
-      trip.preferences.startLocation = startLocation;
-    }
-    
-    await trip.save();
-    
-    res.status(200).json({
-      success: true,
-      data: trip,
-      message: 'Trip started successfully'
-    });
-    
-  } catch (error) {
-    console.error('Start trip error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error starting trip'
-    });
-  }
-});
 
-// POST /api/trips/:tripId/visit/:placeId - Mark place as visited
-router.post('/:tripId/visit/:placeId', async (req, res) => {
-  try {
-    const { tripId, placeId } = req.params;
-    const { rating, notes, photos } = req.body;
-    
-    const { Trip } = require('../models/Trip');
-    
-    const trip = await Trip.findById(tripId);
-    if (!trip) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trip not found'
-      });
-    }
-    
-    trip.visitPlace(placeId, rating, notes);
-    
-    if (photos && Array.isArray(photos)) {
-      const place = trip.places.find(p => p.placeId === placeId);
-      if (place) {
-        place.photos = photos;
-      }
-    }
-    
-    await trip.save();
-    
-    const remainingMetrics = trip.getRemainingMetrics();
-    
-    res.status(200).json({
-      success: true,
-      data: {
-        trip: trip.generateSummary(),
-        remainingMetrics,
-        nextPlace: trip.getNextPlace()
-      },
-      message: 'Place marked as visited'
-    });
-    
-  } catch (error) {
-    console.error('Visit place error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating place visit status'
-    });
-  }
-});
+    // Validate places exist
+    const placeIds = places.map(p => typeof p === 'string' ? p : p.id);
+    const validPlaces = await Place.find({ id: { $in: placeIds } });
 
-// GET /api/trips/:tripId/progress - Get trip progress
-router.get('/:tripId/progress', async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    
-    const { Trip } = require('../models/Trip');
-    
-    const trip = await Trip.findById(tripId);
-    if (!trip) {
-      return res.status(404).json({
+    if (validPlaces.length !== places.length) {
+      return res.status(400).json({
         success: false,
-        message: 'Trip not found'
+        message: 'Some places were not found in database',
+        details: {
+          requested: places.length,
+          found: validPlaces.length,
+          missing: places.length - validPlaces.length
+        }
       });
     }
-    
-    const summary = trip.generateSummary();
-    const remainingMetrics = trip.getRemainingMetrics();
-    const nextPlace = trip.getNextPlace();
-    const currentPlace = trip.getCurrentPlace();
-    
-    res.status(200).json({
-      success: true,
-      data: {
-        summary,
-        remainingMetrics,
-        nextPlace,
-        currentPlace,
-        progressPercentage: trip.progressPercentage,
-        visitedPlaces: trip.places.filter(p => p.visited),
-        unvisitedPlaces: trip.places.filter(p => !p.visited)
-      }
-    });
-    
-  } catch (error) {
-    console.error('Get progress error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching trip progress'
-    });
-  }
-});
 
-// POST /api/trips/:tripId/complete - Complete trip and add feedback
-router.post('/:tripId/complete', async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    const { overallRating, comments, wouldRecommend, improvements } = req.body;
-    
-    const { Trip } = require('../models/Trip');
-    
-    const trip = await Trip.findById(tripId);
-    if (!trip) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trip not found'
-      });
-    }
-    
-    trip.status = 'completed';
-    trip.feedback = {
-      overallRating,
-      comments,
-      wouldRecommend,
-      improvements,
-      ratedAt: new Date()
+    // Validate constraints
+    const validation = {
+      isValid: true,
+      warnings: [],
+      errors: [],
+      recommendations: []
     };
-    
-    await trip.save();
-    
-    res.status(200).json({
-      success: true,
-      data: trip.generateSummary(),
-      message: 'Trip completed successfully'
-    });
-    
-  } catch (error) {
-    console.error('Complete trip error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error completing trip'
-    });
-  }
-});
 
-/**
- * SHARING AND DISCOVERY ROUTES
- */
+    // Time constraint validation
+    if (constraints.timeConstraints?.maxDuration) {
+      const totalVisitTime = validPlaces.reduce((sum, place) => sum + place.averageVisitDuration, 0);
+      const estimatedTravelTime = validPlaces.length > 1 ? (validPlaces.length - 1) * 60 : 0; // Rough estimate
+      const totalTime = totalVisitTime + estimatedTravelTime;
 
-// POST /api/trips/:tripId/share - Share trip publicly or with specific users
-router.post('/:tripId/share', async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    const { isPublic, shareWith } = req.body;
-    
-    const { Trip } = require('../models/Trip');
-    
-    const trip = await Trip.findById(tripId);
-    if (!trip) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trip not found'
+      if (totalTime > constraints.timeConstraints.maxDuration) {
+        validation.warnings.push({
+          type: 'TIME_EXCEEDED',
+          message: `Estimated total time (${Math.round(totalTime/60)}h) exceeds available time (${Math.round(constraints.timeConstraints.maxDuration/60)}h)`,
+          suggestion: 'Consider reducing the number of places or increasing available time'
+        });
+      }
+
+      if (totalTime < constraints.timeConstraints.maxDuration * 0.5) {
+        validation.recommendations.push({
+          type: 'UNDERUTILIZED_TIME',
+          message: 'You have extra time available',
+          suggestion: 'Consider adding more places or spending more time at each location'
+        });
+      }
+    }
+
+    // Budget constraint validation
+    if (constraints.budget) {
+      const totalEntryCost = validPlaces.reduce((sum, place) => sum + (place.entryFee?.indian || 0), 0);
+      const budgetNumber = typeof constraints.budget === 'number' ? constraints.budget : parseFloat(constraints.budget);
+
+      if (totalEntryCost > budgetNumber * 0.7) { // Entry fees shouldn't exceed 70% of budget
+        validation.warnings.push({
+          type: 'BUDGET_TIGHT',
+          message: `Entry fees (₹${totalEntryCost}) are high compared to budget`,
+          suggestion: 'Consider including more free-entry places or increasing budget'
+        });
+      }
+    }
+
+    // Accessibility validation
+    if (constraints.accessibility?.wheelchairAccess) {
+      const inaccessiblePlaces = validPlaces.filter(place => !place.wheelchairAccessible);
+      if (inaccessiblePlaces.length > 0) {
+        validation.errors.push({
+          type: 'ACCESSIBILITY_ISSUE',
+          message: `${inaccessiblePlaces.length} places are not wheelchair accessible`,
+          places: inaccessiblePlaces.map(p => p.name),
+          suggestion: 'Remove these places or check for alternative access options'
+        });
+        validation.isValid = false;
+      }
+    }
+
+    // Distance validation (rough check)
+    const states = [...new Set(validPlaces.map(place => place.state))];
+    if (states.length > 2 && constraints.timeConstraints?.maxDuration < 720) { // More than 2 states in less than 12 hours
+      validation.warnings.push({
+        type: 'LONG_DISTANCE',
+        message: `Places span ${states.length} states: ${states.join(', ')}`,
+        suggestion: 'Consider grouping places by region to reduce travel time'
       });
     }
-    
-    trip.sharing.isPublic = isPublic;
-    
-    if (shareWith && Array.isArray(shareWith)) {
-      trip.sharing.sharedWith = shareWith.map(userId => ({
-        userId,
-        permission: 'view',
-        sharedAt: new Date()
-      }));
+
+    // Generate optimization recommendations
+    if (validPlaces.length <= 8) {
+      validation.recommendations.push({
+        type: 'ALGORITHM_SUGGESTION',
+        message: 'Small problem size detected',
+        suggestion: 'Use dynamic programming for optimal results'
+      });
+    } else if (validPlaces.length > 15) {
+      validation.recommendations.push({
+        type: 'ALGORITHM_SUGGESTION',
+        message: 'Large problem size detected',
+        suggestion: 'Use genetic algorithm or ant colony optimization'
+      });
     }
-    
-    await trip.save();
-    
+
     res.status(200).json({
       success: true,
       data: {
-        shareToken: trip.sharing.shareToken,
-        isPublic: trip.sharing.isPublic,
-        sharedWith: trip.sharing.sharedWith
-      },
-      message: 'Trip sharing updated successfully'
-    });
-    
-  } catch (error) {
-    console.error('Share trip error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating trip sharing'
-    });
-  }
-});
-
-// GET /api/trips/public - Get public trips for discovery
-router.get('/public', async (req, res) => {
-  try {
-    const { 
-      city, 
-      interests, 
-      duration, 
-      rating = 3, 
-      limit = 20, 
-      page = 1 
-    } = req.query;
-    
-    const { Trip } = require('../models/Trip');
-    
-    const filters = { 
-      city, 
-      interests: interests ? interests.split(',') : undefined, 
-      duration, 
-      rating: parseFloat(rating) 
-    };
-    
-    const publicTrips = await Trip.findPublicTrips(filters);
-    
-    res.status(200).json({
-      success: true,
-      data: publicTrips,
-      count: publicTrips.length,
-      filters: filters
-    });
-    
-  } catch (error) {
-    console.error('Get public trips error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching public trips'
-    });
-  }
-});
-
-// GET /api/trips/:tripId/similar - Get similar trips
-router.get('/:tripId/similar', async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    const { limit = 5 } = req.query;
-    
-    const { Trip } = require('../models/Trip');
-    
-    const similarTrips = await Trip.findSimilarTrips(tripId);
-    
-    res.status(200).json({
-      success: true,
-      data: similarTrips.slice(0, parseInt(limit))
-    });
-    
-  } catch (error) {
-    console.error('Get similar trips error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error finding similar trips'
-    });
-  }
-});
-
-/**
- * ANALYTICS AND STATISTICS ROUTES
- */
-
-// GET /api/trips/stats/user/:userId - Get user trip statistics
-router.get('/stats/user/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    
-    const { Trip } = require('../models/Trip');
-    
-    const stats = await Trip.getTripStatistics(userId);
-    
-    res.status(200).json({
-      success: true,
-      data: stats[0] || {
-        totalTrips: 0,
-        completedTrips: 0,
-        totalPlacesVisited: 0,
-        totalDistanceTraveled: 0,
-        completionRate: 0
+        validation,
+        summary: {
+          placesCount: validPlaces.length,
+          estimatedDuration: `${Math.round((validPlaces.reduce((sum, p) => sum + p.averageVisitDuration, 0) + (validPlaces.length - 1) * 60) / 60)}h`,
+          totalEntryCost: validPlaces.reduce((sum, place) => sum + (place.entryFee?.indian || 0), 0),
+          statesCovered: states.length,
+          categoriesIncluded: [...new Set(validPlaces.map(p => p.category))].length
+        }
       }
     });
-    
+
   } catch (error) {
-    console.error('Get user stats error:', error);
+    console.error('Trip validation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching user statistics'
+      message: 'Error validating trip',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
-
-// GET /api/trips/stats/global - Get global trip statistics
-router.get('/stats/global', async (req, res) => {
-  try {
-    const { Trip } = require('../models/Trip');
-    
-    const stats = await Trip.getTripStatistics();
-    
-    res.status(200).json({
-      success: true,
-      data: stats[0] || {}
-    });
-    
-  } catch (error) {
-    console.error('Get global stats error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching global statistics'
-    });
-  }
-});
-
-/**
- * HEALTH AND UTILITY ROUTES
- */
 
 // GET /api/trips/health - Health check for trip service
 router.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
-    service: 'Trip Planning Service',
-    status: 'operational',
+    message: 'Trip planning service is operational',
+    services: {
+      optimization: 'active',
+      algorithms: 6,
+      database: 'connected',
+      distanceCalculator: 'active'
+    },
     features: {
-      tripGeneration: 'active',
-      routeOptimization: 'active',
-      travelMatrix: 'active',
-      tripAnalysis: 'active',
-      progressTracking: 'active',
-      publicSharing: 'active'
+      routeOptimization: true,
+      multiObjective: true,
+      realTimeCalculation: true,
+      aiSuggestions: true
     },
-    algorithms: {
-      greedy: 'active',
-      balanced: 'active',
-      distance: 'active',
-      rating: 'active',
-      time: 'active'
-    },
-    version: '2.0',
     timestamp: new Date().toISOString()
   });
 });
 
-// GET /api/trips/algorithms - Get available optimization algorithms
-router.get('/algorithms', (req, res) => {
-  res.status(200).json({
-    success: true,
-    algorithms: {
-      greedy: {
-        name: 'Greedy Selection',
-        description: 'Fast algorithm that picks best available option at each step',
-        best_for: 'Quick optimization with good results',
-        time_complexity: 'O(n²)',
-        max_places: 20
-      },
-      balanced: {
-        name: 'Balanced Multi-Criteria',
-        description: 'Considers multiple factors: rating, distance, time, cost',
-        best_for: 'Most practical real-world trips',
-        time_complexity: 'O(n² log n)',
-        max_places: 15
-      },
-      distance: {
-        name: 'Distance Minimization',
-        description: 'Minimizes total travel distance using nearest neighbor',
-        best_for: 'Fuel efficiency and less travel time',
-        time_complexity: 'O(n²)',
-        max_places: 20
-      },
-      rating: {
-        name: 'Rating Maximization',
-        description: 'Prioritizes highest-rated attractions',
-        best_for: 'Quality-focused experiences',
-        time_complexity: 'O(n log n)',
-        max_places: 25
-      },
-      time: {
-        name: 'Time Optimization',
-        description: 'Maximizes places visited within time constraints',
-        best_for: 'Time-limited trips',
-        time_complexity: 'O(n²)',
-        max_places: 15
-      }
-    }
-  });
-});
-
-/**
- * ERROR HANDLING MIDDLEWARE
- */
-
-// Trip-specific error handler
+// Error handling middleware for trip routes
 router.use((error, req, res, next) => {
-  console.error('Trip service error:', error);
-  
-  // Handle specific error types
-  if (error.name === 'ValidationError') {
+  console.error('Trip route error:', error);
+
+  // Handle specific optimization errors
+  if (error.message && error.message.includes('Dynamic programming TSP limited')) {
     return res.status(400).json({
       success: false,
-      message: 'Validation error',
-      errors: Object.values(error.errors).map(err => err.message)
+      message: 'Too many places for optimal algorithm',
+      suggestion: 'Use genetic algorithm instead or reduce the number of places',
+      maxPlacesForOptimal: 12
     });
   }
-  
-  if (error.name === 'CastError') {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid ID format'
-    });
-  }
-  
-  if (error.code === 11000) {
-    return res.status(409).json({
-      success: false,
-      message: 'Duplicate entry'
-    });
-  }
-  
-  // Optimization timeout
-  if (error.message.includes('timeout') || error.code === 'TIMEOUT') {
+
+  // Handle timeout errors
+  if (error.code === 'OPTIMIZATION_TIMEOUT') {
     return res.status(408).json({
       success: false,
-      message: 'Optimization took too long. Try with fewer places or simpler constraints.',
-      suggestion: 'Use fast algorithm or reduce number of places'
+      message: 'Optimization timed out',
+      suggestion: 'Try with fewer places or use a faster algorithm',
+      fallback: 'advanced-greedy'
     });
   }
-  
-  // Google Maps API errors
-  if (error.message.includes('Google Maps') || error.message.includes('API quota')) {
+
+  // Handle distance calculation errors
+  if (error.message && error.message.includes('distance calculation')) {
     return res.status(503).json({
       success: false,
-      message: 'External mapping service temporarily unavailable',
-      fallback: 'Using estimated distances based on coordinates'
+      message: 'Distance calculation service temporarily unavailable',
+      fallback: true
     });
   }
-  
+
   // Generic error response
   res.status(500).json({
     success: false,
-    message: 'Trip service error',
+    message: 'Trip planning service error',
     error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
   });
 });

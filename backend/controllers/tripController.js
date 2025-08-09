@@ -1,939 +1,731 @@
 // backend/controllers/tripController.js
-const TripPlanner = require('../utils/tripPlanner');
-const DistanceCalculator = require('../utils/distanceCalculator');
 const Place = require('../models/Place');
-const Trip = require('../models/Trip');
+const OptimizationAlgorithms = require('../utils/optimizationAlgorithms');
+const DistanceCalculator = require('../utils/distanceCalculator');
 
-const tripPlanner = new TripPlanner();
-const distanceCalculator = new DistanceCalculator();
+class TripController {
+  constructor() {
+    this.optimizationAlgorithms = new OptimizationAlgorithms();
+    this.distanceCalculator = new DistanceCalculator();
+  }
 
-/**
- * Generate optimized trip using greedy algorithm
- * POST /api/trips/generate
- */
-const generateTrip = async (req, res) => {
-  try {
-    const {
-      preferences,
-      constraints = {},
-      userId,
-      tripName = 'My Optimized Trip'
-    } = req.body;
+  // Generate optimized trip with AI-powered recommendations
+  generateTrip = async (req, res) => {
+    try {
+      const {
+        preferences = {},
+        constraints = {},
+        algorithm = 'advanced-greedy',
+        startLocation = null
+      } = req.body;
 
-    // Input validation
-    const validationError = validateTripPreferences(preferences, constraints);
-    if (validationError) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid trip preferences',
-        error: validationError
-      });
-    }
+      const {
+        interests = [],
+        duration = 480, // 8 hours default
+        budget = Infinity,
+        accessibility = {},
+        groupType = 'family',
+        season = 'any'
+      } = preferences;
 
-    console.log(`Generating trip for user: ${userId || 'anonymous'}`);
-
-    // Merge preferences and constraints
-    const planningParams = {
-      ...preferences,
-      ...constraints,
-      startTime: Date.now()
-    };
-
-    // Generate optimized trip using greedy algorithm
-    const result = await tripPlanner.planTrip(planningParams);
-
-    if (!result.success) {
-      return res.status(422).json({
-        success: false,
-        message: 'Unable to generate optimal trip',
-        error: result.error,
-        fallback: result.fallback
-      });
-    }
-
-    // Save trip to database if user provided
-    let savedTrip = null;
-    if (userId) {
-      try {
-        savedTrip = await saveTripToDatabase({
-          userId,
-          name: tripName,
-          trip: result.trip,
-          itinerary: result.itinerary,
-          metadata: result.metadata,
-          preferences: planningParams
-        });
-      } catch (saveError) {
-        console.warn('Failed to save trip to database:', saveError);
-        // Continue without saving
+      // Get places based on interests
+      let places = [];
+      if (interests.length > 0) {
+        places = await Place.find({
+          category: { $in: interests },
+          isActive: { $ne: false }
+        }).sort({ rating: -1 });
+      } else {
+        places = await Place.find({
+          isActive: { $ne: false }
+        }).sort({ rating: -1 }).limit(20);
       }
-    }
 
-    res.status(200).json({
-      success: true,
-      data: {
-        trip: result.trip,
-        itinerary: result.itinerary,
-        savedTripId: savedTrip?._id,
-        metadata: {
-          ...result.metadata,
-          generatedAt: new Date().toISOString(),
-          algorithm: 'greedy-optimized',
-          version: '2.0'
+      if (places.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No places found matching your criteria'
+        });
+      }
+
+      // Apply filters based on constraints
+      places = this.applyConstraintFilters(places, constraints);
+
+      // Select algorithm based on problem size and preferences
+      const selectedAlgorithm = this.selectOptimalAlgorithm(places.length, algorithm);
+
+      const optimizationConstraints = {
+        startLocation,
+        timeConstraints: { maxDuration: duration },
+        budget,
+        accessibility,
+        strategy: this.getOptimizationStrategy(groupType),
+        ...constraints
+      };
+
+      // Run optimization
+      const optimizationResult = await this.runOptimization(
+        places,
+        selectedAlgorithm,
+        optimizationConstraints
+      );
+
+      // Generate detailed itinerary
+      const itinerary = await this.generateDetailedItinerary(
+        optimizationResult.route,
+        optimizationConstraints
+      );
+
+      // Calculate additional metrics
+      const tripMetrics = await this.calculateTripMetrics(
+        optimizationResult.route,
+        itinerary
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          tripId: this.generateTripId(),
+          optimizedRoute: optimizationResult.route,
+          itinerary,
+          metrics: {
+            ...optimizationResult,
+            ...tripMetrics
+          },
+          algorithm: selectedAlgorithm,
+          recommendations: await this.generateRecommendations(optimizationResult.route),
+          alternatives: await this.generateAlternatives(places, optimizationResult.route)
+        }
+      });
+
+    } catch (error) {
+      console.error('Trip generation error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error generating trip',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  };
+
+  // Optimize existing trip
+  optimizeTrip = async (req, res) => {
+    try {
+      const {
+        places,
+        constraints = {},
+        algorithm = 'genetic',
+        currentRoute = []
+      } = req.body;
+
+      if (!places || places.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: 'At least 2 places are required for optimization'
+        });
+      }
+
+      // Validate places exist in database
+      const validPlaces = await Place.find({
+        id: { $in: places.map(p => p.id || p) }
+      });
+
+      if (validPlaces.length !== places.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'Some places were not found in the database'
+        });
+      }
+
+      const selectedAlgorithm = this.selectOptimalAlgorithm(validPlaces.length, algorithm);
+
+      const optimizationResult = await this.runOptimization(
+        validPlaces,
+        selectedAlgorithm,
+        constraints
+      );
+
+      // Calculate improvement metrics
+      const improvement = currentRoute.length > 0 ? 
+        await this.calculateImprovement(currentRoute, optimizationResult.route) : null;
+
+      res.status(200).json({
+        success: true,
+        data: {
+          optimizedRoute: optimizationResult.route,
+          metrics: optimizationResult,
+          algorithm: selectedAlgorithm,
+          improvement,
+          executionTime: Date.now() - req.startTime
+        }
+      });
+
+    } catch (error) {
+      console.error('Trip optimization error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error optimizing trip',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  };
+
+  // Get AI-powered trip suggestions
+  getTripSuggestions = async (req, res) => {
+    try {
+      const {
+        currentLocation,
+        interests = [],
+        duration = 480,
+        budget = 'moderate',
+        groupSize = 2,
+        accessibility = {}
+      } = req.query;
+
+      // Get suggested places based on criteria
+      const suggestions = await this.generateTripSuggestions({
+        currentLocation: currentLocation ? JSON.parse(currentLocation) : null,
+        interests: Array.isArray(interests) ? interests : [interests],
+        duration: parseInt(duration),
+        budget,
+        groupSize: parseInt(groupSize),
+        accessibility: typeof accessibility === 'string' ? JSON.parse(accessibility) : accessibility
+      });
+
+      res.status(200).json({
+        success: true,
+        data: suggestions
+      });
+
+    } catch (error) {
+      console.error('Trip suggestions error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error generating trip suggestions',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  };
+
+  // Calculate travel matrix between places
+  calculateTravelMatrix = async (req, res) => {
+    try {
+      const { placeIds } = req.body;
+
+      if (!placeIds || placeIds.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: 'At least 2 places are required for travel matrix'
+        });
+      }
+
+      const places = await Place.find({
+        id: { $in: placeIds }
+      });
+
+      if (places.length !== placeIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'Some places were not found'
+        });
+      }
+
+      const locations = places.map(place => place.location);
+      const travelMatrix = await this.distanceCalculator.calculateDistanceMatrix(
+        locations,
+        locations
+      );
+
+      // Enhance matrix with place information
+      const enhancedMatrix = places.map((fromPlace, i) => ({
+        from: {
+          id: fromPlace.id,
+          name: fromPlace.name,
+          location: fromPlace.location
+        },
+        destinations: places.map((toPlace, j) => ({
+          to: {
+            id: toPlace.id,
+            name: toPlace.name,
+            location: toPlace.location
+          },
+          distance: travelMatrix.distances[i][j],
+          duration: travelMatrix.durations[i][j],
+          travelMode: 'driving'
+        }))
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          matrix: enhancedMatrix,
+          summary: {
+            totalPlaces: places.length,
+            avgDistance: this.calculateAverageDistance(travelMatrix.distances),
+            maxDistance: this.getMaxDistance(travelMatrix.distances),
+            minDistance: this.getMinDistance(travelMatrix.distances)
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Travel matrix calculation error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error calculating travel matrix',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  };
+
+  // Helper Methods
+  applyConstraintFilters(places, constraints) {
+    return places.filter(place => {
+      // Accessibility filters
+      if (constraints.accessibility?.wheelchairAccess && !place.wheelchairAccessible) {
+        return false;
+      }
+
+      if (constraints.accessibility?.kidFriendly && !place.kidFriendly) {
+        return false;
+      }
+
+      // Budget filters
+      if (constraints.budget && typeof constraints.budget === 'number') {
+        const entryCost = place.entryFee?.indian || 0;
+        if (entryCost > constraints.budget * 0.3) { // Max 30% of budget per place
+          return false;
         }
       }
-    });
 
-  } catch (error) {
-    console.error('Trip generation error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error generating trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      // Time filters
+      if (constraints.timeConstraints?.minDuration && 
+          place.averageVisitDuration < constraints.timeConstraints.minDuration) {
+        return false;
+      }
+
+      return true;
     });
   }
-};
 
-/**
- * Get AI-powered trip suggestions based on preferences
- * GET /api/trips/suggestions
- */
-const getTripSuggestions = async (req, res) => {
-  try {
-    const {
-      city,
-      interests = [],
-      duration = '1-day',
-      budget,
-      groupType = 'solo',
-      season = 'any'
-    } = req.query;
+  selectOptimalAlgorithm(placeCount, preferredAlgorithm) {
+    // Algorithm selection logic based on problem complexity
+    if (placeCount <= 3) return 'advanced-greedy';
+    if (placeCount <= 8 && preferredAlgorithm === 'optimal') return 'dynamicProgramming';
+    if (placeCount <= 12) return 'genetic';
+    if (placeCount <= 20) return 'simulatedAnnealing';
+    return 'antColony';
+  }
 
-    // Get popular places based on filters
-    const filter = {
-      rating: { $gte: 3.5 }
+  getOptimizationStrategy(groupType) {
+    const strategies = {
+      family: 'comfort',
+      solo: 'efficiency',
+      couple: 'scenic',
+      group: 'balanced',
+      business: 'fast'
+    };
+    return strategies[groupType] || 'balanced';
+  }
+
+  async runOptimization(places, algorithm, constraints) {
+    const algorithms = {
+      'advanced-greedy': this.optimizationAlgorithms.advancedGreedyOptimization,
+      'genetic': this.optimizationAlgorithms.geneticAlgorithmOptimization,
+      'dynamicProgramming': this.optimizationAlgorithms.dynamicProgrammingTSP,
+      'simulatedAnnealing': this.optimizationAlgorithms.simulatedAnnealingOptimization,
+      'antColony': this.optimizationAlgorithms.antColonyOptimization,
+      'multiObjective': this.optimizationAlgorithms.multiObjectiveOptimization
     };
 
-    if (city) {
-      filter.city = { $regex: city, $options: 'i' };
-    }
+    const optimizationFunction = algorithms[algorithm] || algorithms['advanced-greedy'];
+    return await optimizationFunction.call(this.optimizationAlgorithms, places, constraints);
+  }
 
-    if (interests.length > 0) {
-      const interestArray = Array.isArray(interests) ? interests : interests.split(',');
-      filter.category = { $in: interestArray };
-    }
+  async generateDetailedItinerary(route, constraints) {
+    const startTime = constraints.startTime || '09:00';
+    const itinerary = [];
+    let currentTime = this.parseTime(startTime);
+    let currentLocation = constraints.startLocation;
 
-    const places = await Place.find(filter)
-      .sort({ rating: -1, averageVisitDuration: 1 })
-      .limit(20)
-      .lean();
+    for (let i = 0; i < route.length; i++) {
+      const place = route[i];
+      const isFirst = i === 0;
+      const isLast = i === route.length - 1;
 
-    if (places.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No places found matching your criteria'
-      });
-    }
+      let travelTime = 0;
+      let travelDistance = 0;
 
-    // Generate different trip suggestions
-    const suggestions = await generateTripSuggestions(places, {
-      duration,
-      budget: budget ? parseInt(budget) : Infinity,
-      groupType,
-      season,
-      interests: Array.isArray(interests) ? interests : interests.split(',')
-    });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        suggestions,
-        basedOn: {
-          city: city || 'Multiple cities',
-          interests: interests.length > 0 ? interests : ['All categories'],
-          duration,
-          budget: budget ? `₹${budget}` : 'No limit'
-        },
-        totalPlacesConsidered: places.length
+      // Calculate travel time to this place
+      if (currentLocation) {
+        const travelInfo = await this.distanceCalculator.calculateDrivingDistance(
+          currentLocation,
+          place.location
+        );
+        travelTime = travelInfo.duration;
+        travelDistance = travelInfo.distance;
       }
-    });
 
-  } catch (error) {
-    console.error('Trip suggestions error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error getting trip suggestions',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
+      // Add travel time to current time
+      currentTime += travelTime;
 
-/**
- * Optimize existing trip route
- * POST /api/trips/optimize
- */
-const optimizeTrip = async (req, res) => {
-  try {
-    const {
-      places,
-      startLocation,
-      constraints = {},
-      optimizationGoal = 'balanced'
-    } = req.body;
-
-    if (!places || !Array.isArray(places) || places.length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: 'At least 2 places are required for optimization'
-      });
-    }
-
-    // Fetch place details from database
-    const placeIds = places.map(p => p.id || p._id || p);
-    const placeDetails = await Place.find({
-      $or: [
-        { _id: { $in: placeIds } },
-        { id: { $in: placeIds } }
-      ]
-    }).lean();
-
-    if (placeDetails.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No valid places found'
-      });
-    }
-
-    // Apply optimization strategy
-    const optimizationParams = {
-      startLocation,
-      ...constraints,
-      strategy: optimizationGoal,
-      maxPlaces: placeDetails.length
-    };
-
-    const optimizedResult = await tripPlanner.planTrip(optimizationParams, placeDetails);
-
-    if (!optimizedResult.success) {
-      return res.status(422).json({
-        success: false,
-        message: 'Optimization failed',
-        error: optimizedResult.error
-      });
-    }
-
-    // Calculate improvement metrics
-    const originalMetrics = await calculateTripMetrics(placeDetails, startLocation);
-    const optimizedMetrics = await calculateTripMetrics(optimizedResult.trip.places, startLocation);
-    const improvement = calculateImprovement(originalMetrics, optimizedMetrics);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        originalTrip: {
-          places: placeDetails,
-          metrics: originalMetrics
+      const itineraryItem = {
+        order: i + 1,
+        place: {
+          id: place.id,
+          name: place.name,
+          category: place.category,
+          location: place.location,
+          description: place.description,
+          entryFee: place.entryFee,
+          amenities: place.amenities,
+          tags: place.tags
         },
-        optimizedTrip: {
-          places: optimizedResult.trip.places,
-          metrics: optimizedMetrics
+        timing: {
+          arrivalTime: this.formatTime(currentTime),
+          departureTime: this.formatTime(currentTime + place.averageVisitDuration),
+          visitDuration: place.averageVisitDuration,
+          bestTimeToVisit: place.bestTimeToVisit
         },
-        improvement,
-        itinerary: optimizedResult.itinerary,
-        recommendations: generateOptimizationRecommendations(improvement)
-      }
-    });
-
-  } catch (error) {
-    console.error('Trip optimization error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error optimizing trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
-
-/**
- * Get travel matrix for multiple places
- * POST /api/trips/matrix
- */
-const getTravelMatrix = async (req, res) => {
-  try {
-    const { places } = req.body;
-
-    if (!places || !Array.isArray(places) || places.length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: 'At least 2 places required for travel matrix'
-      });
-    }
-
-    if (places.length > 12) {
-      return res.status(400).json({
-        success: false,
-        message: 'Maximum 12 places allowed for matrix calculation'
-      });
-    }
-
-    // Fetch place details
-    const placeIds = places.map(p => p.id || p._id || p);
-    const placeDetails = await Place.find({
-      $or: [
-        { _id: { $in: placeIds } },
-        { id: { $in: placeIds } }
-      ]
-    }).lean();
-
-    if (placeDetails.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No valid places found'
-      });
-    }
-
-    // Extract locations
-    const locations = placeDetails.map(place => place.location);
-
-    // Calculate distance matrix
-    const matrix = await distanceCalculator.calculateDistanceMatrix(locations, locations);
-
-    // Format response
-    const formattedMatrix = placeDetails.map((fromPlace, i) => ({
-      from: {
-        id: fromPlace.id,
-        name: fromPlace.name,
-        location: fromPlace.location
-      },
-      destinations: placeDetails.map((toPlace, j) => ({
-        to: {
-          id: toPlace.id,
-          name: toPlace.name,
-          location: toPlace.location
+        travel: isFirst ? null : {
+          from: currentLocation,
+          distance: travelDistance,
+          duration: travelTime,
+          mode: 'driving'
         },
-        ...matrix[i][j]
-      }))
-    }));
+        recommendations: {
+          tips: await this.getPlaceTips(place),
+          nearby: await this.getNearbyAttractions(place),
+          dining: await this.getNearbyDining(place)
+        }
+      };
 
-    // Calculate statistics
-    const statistics = await distanceCalculator.getDistanceStatistics(placeDetails);
+      itinerary.push(itineraryItem);
 
-    res.status(200).json({
-      success: true,
-      data: {
-        matrix: formattedMatrix,
-        statistics,
-        places: placeDetails.map(p => ({
-          id: p.id,
-          name: p.name,
-          city: p.city,
-          category: p.category
-        }))
-      }
-    });
-
-  } catch (error) {
-    console.error('Travel matrix error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error calculating travel matrix',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
-
-/**
- * Get saved trips for user
- * GET /api/trips/user/:userId
- */
-const getUserTrips = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { status, sortBy = 'createdAt', sortOrder = 'desc', limit = 10 } = req.query;
-
-    let query = { userId };
-    if (status) {
-      query.status = status;
+      // Update current time and location
+      currentTime += place.averageVisitDuration;
+      currentLocation = place.location;
     }
 
-    const trips = await Trip.find(query)
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
-      .limit(parseInt(limit))
-      .lean();
-
-    res.status(200).json({
-      success: true,
-      data: {
-        trips,
-        count: trips.length,
-        user: userId
-      }
-    });
-
-  } catch (error) {
-    console.error('Get user trips error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching user trips',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
-
-/**
- * Get trip by ID
- * GET /api/trips/:tripId
- */
-const getTripById = async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    
-    const trip = await Trip.findById(tripId).lean();
-    
-    if (!trip) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trip not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: trip
-    });
-
-  } catch (error) {
-    console.error('Get trip error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
-
-/**
- * Analyze trip performance and suggest improvements
- * POST /api/trips/analyze
- */
-const analyzeTrip = async (req, res) => {
-  try {
-    const { places, constraints = {} } = req.body;
-
-    if (!places || !Array.isArray(places)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Places array is required'
-      });
-    }
-
-    // Fetch place details
-    const placeIds = places.map(p => p.id || p._id || p);
-    const placeDetails = await Place.find({
-      $or: [
-        { _id: { $in: placeIds } },
-        { id: { $in: placeIds } }
-      ]
-    }).lean();
-
-    // Calculate current trip metrics
-    const metrics = await calculateTripMetrics(placeDetails, constraints.startLocation);
-    
-    // Generate analysis and recommendations
-    const analysis = await generateTripAnalysis(placeDetails, metrics, constraints);
-    
-    // Get alternative suggestions
-    const alternatives = await getAlternativeSuggestions(placeDetails, constraints);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        currentTrip: {
-          places: placeDetails.map(p => ({ id: p.id, name: p.name, category: p.category })),
-          metrics
-        },
-        analysis,
-        alternatives,
-        recommendations: generateImprovementRecommendations(analysis)
-      }
-    });
-
-  } catch (error) {
-    console.error('Trip analysis error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error analyzing trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
-
-/**
- * Helper Functions
- */
-
-function validateTripPreferences(preferences, constraints) {
-  if (!preferences) {
-    return 'Preferences object is required';
+    return itinerary;
   }
 
-  if (preferences.budget && preferences.budget < 0) {
-    return 'Budget must be a positive number';
-  }
+  async calculateTripMetrics(route, itinerary) {
+    const totalPlaces = route.length;
+    const totalVisitTime = route.reduce((sum, place) => sum + place.averageVisitDuration, 0);
+    const totalTravelTime = itinerary.reduce((sum, item) => sum + (item.travel?.duration || 0), 0);
+    const totalDistance = itinerary.reduce((sum, item) => sum + (item.travel?.distance || 0), 0);
+    const totalCost = route.reduce((sum, place) => sum + (place.entryFee?.indian || 0), 0);
+    const averageRating = route.reduce((sum, place) => sum + (place.rating || 0), 0) / totalPlaces;
 
-  if (constraints.timeConstraints?.maxDuration && constraints.timeConstraints.maxDuration < 60) {
-    return 'Time constraints must be at least 60 minutes';
-  }
+    const categories = [...new Set(route.map(place => place.category))];
+    const states = [...new Set(route.map(place => place.state))];
 
-  if (preferences.interests && !Array.isArray(preferences.interests)) {
-    return 'Interests must be an array';
-  }
-
-  if (preferences.startLocation && (!preferences.startLocation.latitude || !preferences.startLocation.longitude)) {
-    return 'Start location must have valid latitude and longitude';
-  }
-
-  return null;
-}
-
-async function saveTripToDatabase(tripData) {
-  const trip = new Trip({
-    userId: tripData.userId,
-    name: tripData.name,
-    places: tripData.trip.places.map(place => ({
-      placeId: place._id || place.id,
-      name: place.name,
-      category: place.category,
-      location: place.location,
-      visitDuration: place.averageVisitDuration,
-      entryFee: place.entryFee.indian,
-      order: tripData.trip.places.indexOf(place) + 1
-    })),
-    itinerary: tripData.itinerary,
-    metrics: {
-      totalDistance: tripData.trip.totalDistance || 0,
-      totalTime: tripData.trip.totalTime || 0,
-      totalCost: tripData.trip.totalCost || 0,
-      efficiency: tripData.trip.efficiency || 0,
-      placesCount: tripData.trip.places.length
-    },
-    preferences: tripData.preferences,
-    status: 'generated',
-    metadata: tripData.metadata
-  });
-
-  return await trip.save();
-}
-
-async function generateTripSuggestions(places, options) {
-  const { duration, budget, groupType, season, interests } = options;
-  
-  const suggestions = [];
-
-  // Quick Trip (3-4 hours)
-  if (duration.includes('half') || duration.includes('quick')) {
-    const quickPlaces = places
-      .filter(p => p.averageVisitDuration <= 90)
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 4);
-
-    if (quickPlaces.length >= 2) {
-      const optimizedQuick = await tripPlanner.planTrip({
-        strategy: 'time',
-        timeConstraints: { maxDuration: 240 }, // 4 hours
-        budget,
-        interests
-      }, quickPlaces);
-
-      if (optimizedQuick.success) {
-        suggestions.push({
-          type: 'Quick Explorer',
-          duration: '3-4 hours',
-          description: 'Perfect for short visits with top-rated attractions',
-          places: optimizedQuick.trip.places.slice(0, 4),
-          metrics: {
-            totalTime: '3-4 hours',
-            estimatedCost: optimizedQuick.trip.totalCost,
-            difficulty: 'Easy'
-          },
-          ideal_for: ['Business travelers', 'Short layovers', 'Quick city tours']
-        });
-      }
-    }
-  }
-
-  // Full Day Trip (8-10 hours)
-  if (duration.includes('day') || duration.includes('full')) {
-    const dayPlaces = places
-      .sort((a, b) => (b.rating * 2 + Math.log(b.reviewCount || 1)) - (a.rating * 2 + Math.log(a.reviewCount || 1)))
-      .slice(0, 8);
-
-    const optimizedDay = await tripPlanner.planTrip({
-      strategy: 'balanced',
-      timeConstraints: { maxDuration: 600 }, // 10 hours
-      budget,
-      interests
-    }, dayPlaces);
-
-    if (optimizedDay.success) {
-      suggestions.push({
-        type: 'Full Day Adventure',
-        duration: '8-10 hours',
-        description: 'Comprehensive exploration with diverse experiences',
-        places: optimizedDay.trip.places,
-        metrics: {
-          totalTime: '8-10 hours',
-          estimatedCost: optimizedDay.trip.totalCost,
-          difficulty: 'Moderate'
-        },
-        ideal_for: ['Tourists', 'Weekend travelers', 'Culture enthusiasts']
-      });
-    }
-  }
-
-  // Cultural Heritage Focus
-  const culturalPlaces = places.filter(p => 
-    ['temple', 'heritage', 'palace', 'fort'].includes(p.category)
-  );
-
-  if (culturalPlaces.length >= 3) {
-    const culturalTrip = await tripPlanner.planTrip({
-      strategy: 'rating',
-      timeConstraints: { maxDuration: 480 },
-      budget,
-      interests: ['temple', 'heritage', 'palace', 'fort']
-    }, culturalPlaces.slice(0, 6));
-
-    if (culturalTrip.success) {
-      suggestions.push({
-        type: 'Cultural Heritage Trail',
-        duration: '6-8 hours',
-        description: 'Deep dive into historical and cultural landmarks',
-        places: culturalTrip.trip.places,
-        metrics: {
-          totalTime: '6-8 hours',
-          estimatedCost: culturalTrip.trip.totalCost,
-          difficulty: 'Moderate'
-        },
-        ideal_for: ['History buffs', 'Cultural tourists', 'Educational trips'],
-        speciality: 'Heritage Focus'
-      });
-    }
-  }
-
-  // Budget-Friendly Trip
-  if (budget && budget < 2000) {
-    const budgetPlaces = places
-      .filter(p => (p.entryFee?.indian || 0) <= budget * 0.2)
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 6);
-
-    if (budgetPlaces.length >= 3) {
-      const budgetTrip = await tripPlanner.planTrip({
-        strategy: 'balanced',
-        budget,
-        timeConstraints: { maxDuration: 480 }
-      }, budgetPlaces);
-
-      if (budgetTrip.success) {
-        suggestions.push({
-          type: 'Budget Explorer',
-          duration: '6-8 hours',
-          description: 'Great experiences without breaking the bank',
-          places: budgetTrip.trip.places,
-          metrics: {
-            totalTime: '6-8 hours',
-            estimatedCost: budgetTrip.trip.totalCost,
-            difficulty: 'Easy'
-          },
-          ideal_for: ['Budget travelers', 'Students', 'Backpackers'],
-          speciality: 'Budget Friendly'
-        });
-      }
-    }
-  }
-
-  return suggestions.length > 0 ? suggestions : [{
-    type: 'Custom Selection',
-    description: 'Handpicked places based on your preferences',
-    places: places.slice(0, 5),
-    metrics: {
-      totalTime: 'Variable',
-      estimatedCost: places.slice(0, 5).reduce((sum, p) => sum + (p.entryFee?.indian || 0), 0),
-      difficulty: 'Moderate'
-    }
-  }];
-}
-
-async function calculateTripMetrics(places, startLocation = null) {
-  if (places.length === 0) {
     return {
-      totalDistance: 0,
-      totalTime: 0,
-      totalCost: 0,
-      averageRating: 0,
-      placesCount: 0
+      summary: {
+        totalPlaces,
+        totalTime: totalVisitTime + totalTravelTime,
+        totalVisitTime,
+        totalTravelTime,
+        totalDistance,
+        totalCost,
+        averageRating,
+        categories: categories.length,
+        states: states.length
+      },
+      breakdown: {
+        byCategory: this.groupByCategory(route),
+        byState: this.groupByState(route),
+        timeDistribution: {
+          visiting: totalVisitTime,
+          traveling: totalTravelTime,
+          efficiency: totalVisitTime / (totalVisitTime + totalTravelTime)
+        }
+      }
     };
   }
 
-  const routeMetrics = await distanceCalculator.calculateRouteMetrics(places, startLocation);
-  const totalVisitTime = places.reduce((sum, place) => sum + place.averageVisitDuration, 0);
-  const totalCost = places.reduce((sum, place) => sum + (place.entryFee?.indian || 0), 0);
-  const averageRating = places.reduce((sum, place) => sum + place.rating, 0) / places.length;
+  async generateRecommendations(route) {
+    return {
+      packingList: this.generatePackingList(route),
+      weatherTips: await this.getWeatherTips(route),
+      culturalTips: this.getCulturalTips(route),
+      budgetTips: this.getBudgetTips(route),
+      safetyTips: this.getSafetyTips(route)
+    };
+  }
 
-  return {
-    totalDistance: routeMetrics.totalDistance,
-    totalTravelTime: routeMetrics.totalTime,
-    totalVisitTime,
-    totalTime: routeMetrics.totalTime + totalVisitTime,
-    totalCost,
-    averageRating: Math.round(averageRating * 10) / 10,
-    placesCount: places.length,
-    efficiency: places.length / Math.max((routeMetrics.totalTime + totalVisitTime) / 60, 1),
-    categoryDistribution: getCategoryDistribution(places)
-  };
-}
+  async generateAlternatives(allPlaces, selectedRoute) {
+    const selectedIds = selectedRoute.map(p => p.id);
+    const alternativePlaces = allPlaces.filter(p => !selectedIds.includes(p.id));
+    
+    return {
+      similarPlaces: this.findSimilarPlaces(selectedRoute, alternativePlaces),
+      nearbyAlternatives: await this.findNearbyAlternatives(selectedRoute, alternativePlaces),
+      categoryAlternatives: this.findCategoryAlternatives(selectedRoute, alternativePlaces)
+    };
+  }
 
-function calculateImprovement(original, optimized) {
-  const distanceImprovement = ((original.totalDistance - optimized.totalDistance) / original.totalDistance) * 100;
-  const timeImprovement = ((original.totalTime - optimized.totalTime) / original.totalTime) * 100;
-  const efficiencyImprovement = ((optimized.efficiency - original.efficiency) / original.efficiency) * 100;
+  generateTripId() {
+    return `trip_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
 
-  return {
-    distance: {
-      original: `${original.totalDistance.toFixed(1)} km`,
-      optimized: `${optimized.totalDistance.toFixed(1)} km`,
-      improvement: `${distanceImprovement.toFixed(1)}%`,
-      better: distanceImprovement > 0
-    },
-    time: {
-      original: formatDuration(original.totalTime),
-      optimized: formatDuration(optimized.totalTime),
-      improvement: `${timeImprovement.toFixed(1)}%`,
-      better: timeImprovement > 0
-    },
-    efficiency: {
-      original: original.efficiency.toFixed(2),
-      optimized: optimized.efficiency.toFixed(2),
-      improvement: `${efficiencyImprovement.toFixed(1)}%`,
-      better: efficiencyImprovement > 0
-    },
-    overall: {
-      score: (distanceImprovement + timeImprovement + efficiencyImprovement) / 3,
-      recommendation: distanceImprovement > 5 || timeImprovement > 5 ? 
-        'Significant improvement achieved' : 
-        'Marginal improvement - consider other factors'
+  // Utility methods for time handling
+  parseTime(timeStr) {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  formatTime(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  }
+
+  // Additional helper methods
+  groupByCategory(places) {
+    return places.reduce((acc, place) => {
+      acc[place.category] = (acc[place.category] || 0) + 1;
+      return acc;
+    }, {});
+  }
+
+  groupByState(places) {
+    return places.reduce((acc, place) => {
+      acc[place.state] = (acc[place.state] || 0) + 1;
+      return acc;
+    }, {});
+  }
+
+  generatePackingList(route) {
+    const items = new Set(['Camera', 'Water bottle', 'Sunscreen', 'Comfortable shoes']);
+    
+    route.forEach(place => {
+      if (place.category === 'hill-station') {
+        items.add('Warm clothing');
+        items.add('Light jacket');
+      }
+      if (place.category === 'beach') {
+        items.add('Swimwear');
+        items.add('Beach towel');
+      }
+      if (place.category === 'temple') {
+        items.add('Modest clothing');
+        items.add('Socks for temple visits');
+      }
+    });
+
+    return Array.from(items);
+  }
+
+  getCulturalTips(route) {
+    const tips = [];
+    const hasTemples = route.some(p => p.category === 'temple');
+    const hasHeritage = route.some(p => p.category === 'heritage');
+
+    if (hasTemples) {
+      tips.push('Dress modestly when visiting temples');
+      tips.push('Remove shoes before entering temple premises');
     }
-  };
-}
+    if (hasHeritage) {
+      tips.push('Respect historical sites and follow photography rules');
+    }
 
-function generateOptimizationRecommendations(improvement) {
-  const recommendations = [];
+    tips.push('Learn basic local greetings');
+    tips.push('Try local cuisine at each destination');
+    
+    return tips;
+  }
 
-  if (improvement.distance.better && parseFloat(improvement.distance.improvement) > 10) {
-    recommendations.push({
-      type: 'distance',
-      message: 'Route optimization significantly reduced travel distance',
-      impact: 'high',
-      benefit: 'Lower fuel costs and less travel fatigue'
+  getBudgetTips(route) {
+    const totalCost = route.reduce((sum, place) => sum + (place.entryFee?.indian || 0), 0);
+    
+    return [
+      `Total entry fees: ₹${totalCost}`,
+      'Book accommodations in advance for better rates',
+      'Use local transport for cost-effective travel',
+      'Try street food for authentic and affordable meals',
+      'Negotiate prices at local markets'
+    ];
+  }
+
+  getSafetyTips(route) {
+    return [
+      'Keep emergency contacts handy',
+      'Inform someone about your itinerary',
+      'Carry a first aid kit',
+      'Stay hydrated, especially in coastal areas',
+      'Be cautious while trekking in hill stations',
+      'Respect local customs and traditions'
+    ];
+  }
+
+  async getPlaceTips(place) {
+    const tips = [`Visit during ${place.bestTimeToVisit.join(' or ')} for the best experience`];
+    
+    if (place.averageVisitDuration > 180) {
+      tips.push('Allow plenty of time to fully explore this place');
+    }
+    
+    if (place.entryFee.indian === 0) {
+      tips.push('Free entry - great for budget travelers!');
+    }
+    
+    return tips;
+  }
+
+  async getNearbyAttractions(place) {
+    // Find other places within 20km radius
+    const nearby = await Place.find({
+      id: { $ne: place.id },
+      $or: [
+        { city: place.city },
+        {
+          'location.latitude': {
+            $gte: place.location.latitude - 0.18, // ~20km
+            $lte: place.location.latitude + 0.18
+          },
+          'location.longitude': {
+            $gte: place.location.longitude - 0.18,
+            $lte: place.location.longitude + 0.18
+          }
+        }
+      ]
+    }).limit(3);
+
+    return nearby.map(p => ({ id: p.id, name: p.name, category: p.category }));
+  }
+
+  async getNearbyDining(place) {
+    // Mock nearby dining recommendations based on location
+    const diningOptions = {
+      'Chennai': ['Murugan Idli Shop', 'Saravana Bhavan', 'Hotel Pandian'],
+      'Madurai': ['Arya Bhavan', 'Kumar Mess', 'Meenakshi Bhavan'],
+      'Mysore': ['Hotel RRR', 'Vinayaka Mylari', 'Depth N Green'],
+      'Ooty': ['Earl\'s Secret', 'Ascot Multi Cuisine', 'Nahar\'s Sidewalk Cafe']
+    };
+
+    return diningOptions[place.city] || ['Local restaurants', 'Street food stalls', 'Hotel dining'];
+  }
+
+  findSimilarPlaces(selectedRoute, alternativePlaces) {
+    const selectedCategories = selectedRoute.map(p => p.category);
+    return alternativePlaces
+      .filter(place => selectedCategories.includes(place.category))
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 5);
+  }
+
+  async findNearbyAlternatives(selectedRoute, alternativePlaces) {
+    // Implementation for finding nearby alternative places
+    return alternativePlaces.slice(0, 3); // Simplified for now
+  }
+
+  findCategoryAlternatives(selectedRoute, alternativePlaces) {
+    const categories = [...new Set(selectedRoute.map(p => p.category))];
+    const alternatives = {};
+    
+    categories.forEach(category => {
+      alternatives[category] = alternativePlaces
+        .filter(place => place.category === category)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 3);
     });
+    
+    return alternatives;
   }
 
-  if (improvement.time.better && parseFloat(improvement.time.improvement) > 15) {
-    recommendations.push({
-      type: 'time',
-      message: 'Optimized route saves considerable travel time',
-      impact: 'high',
-      benefit: 'More time for actual sightseeing'
-    });
-  }
-
-  if (improvement.efficiency.better && parseFloat(improvement.efficiency.improvement) > 20) {
-    recommendations.push({
-      type: 'efficiency',
-      message: 'Trip efficiency significantly improved',
-      impact: 'medium',
-      benefit: 'Better value for time spent'
-    });
-  }
-
-  if (recommendations.length === 0) {
-    recommendations.push({
-      type: 'general',
-      message: 'Original route was already well-optimized',
-      impact: 'low',
-      benefit: 'Minor adjustments made for better flow'
-    });
-  }
-
-  return recommendations;
-}
-
-async function generateTripAnalysis(places, metrics, constraints) {
-  const analysis = {
-    strengths: [],
-    weaknesses: [],
-    opportunities: [],
-    risks: []
-  };
-
-  // Analyze strengths
-  if (metrics.averageRating >= 4.0) {
-    analysis.strengths.push('High-quality attractions with excellent ratings');
-  }
-
-  if (metrics.efficiency >= 1.0) {
-    analysis.strengths.push('Good time efficiency - visiting multiple places per hour');
-  }
-
-  const categoryDistribution = metrics.categoryDistribution;
-  if (Object.keys(categoryDistribution).length >= 3) {
-    analysis.strengths.push('Diverse experience with multiple attraction types');
-  }
-
-  // Analyze weaknesses
-  if (metrics.totalTravelTime > metrics.totalVisitTime * 0.6) {
-    analysis.weaknesses.push('High travel time relative to visit time');
-  }
-
-  if (metrics.totalDistance > 200) {
-    analysis.weaknesses.push('Long total distance may cause fatigue');
-  }
-
-  if (constraints.budget && metrics.totalCost > constraints.budget * 0.8) {
-    analysis.weaknesses.push('Trip cost approaching budget limit');
-  }
-
-  // Analyze opportunities
-  const clusters = distanceCalculator.clusterPlacesByProximity(places);
-  if (clusters.some(cluster => cluster.places.length >= 3)) {
-    analysis.opportunities.push('Clustered attractions allow for focused exploration');
-  }
-
-  if (metrics.totalTime < (constraints.timeConstraints?.maxDuration || 480) * 0.7) {
-    analysis.opportunities.push('Additional time available for more attractions or leisure');
-  }
-
-  // Analyze risks
-  if (places.some(place => place.averageVisitDuration > 180)) {
-    analysis.risks.push('Some attractions require significant time - plan accordingly');
-  }
-
-  if (metrics.totalDistance > 150 && !constraints.hasPrivateTransport) {
-    analysis.risks.push('Long distance without private transport may be challenging');
-  }
-
-  return analysis;
-}
-
-async function getAlternativeSuggestions(originalPlaces, constraints) {
-  const alternatives = [];
-
-  try {
-    // Get nearby alternatives for each place
-    for (const place of originalPlaces.slice(0, 3)) { // Limit to avoid too many queries
-      const nearbyPlaces = await Place.find({
-        _id: { $ne: place._id },
-        city: place.city,
-        category: place.category,
-        rating: { $gte: place.rating - 0.5 }
-      }).limit(2).lean();
-
-      if (nearbyPlaces.length > 0) {
-        alternatives.push({
-          original: { id: place.id, name: place.name, rating: place.rating },
-          alternatives: nearbyPlaces.map(p => ({
-            id: p.id,
-            name: p.name,
-            rating: p.rating,
-            reason: p.rating > place.rating ? 'Higher rated' : 'Similar experience'
-          }))
-        });
+  calculateAverageDistance(distances) {
+    let sum = 0;
+    let count = 0;
+    
+    for (let i = 0; i < distances.length; i++) {
+      for (let j = 0; j < distances[i].length; j++) {
+        if (i !== j) {
+          sum += distances[i][j];
+          count++;
+        }
       }
     }
+    
+    return count > 0 ? sum / count : 0;
+  }
 
-    return alternatives;
-  } catch (error) {
-    console.warn('Error getting alternatives:', error);
-    return [];
+  getMaxDistance(distances) {
+    let max = 0;
+    for (let i = 0; i < distances.length; i++) {
+      for (let j = 0; j < distances[i].length; j++) {
+        if (i !== j && distances[i][j] > max) {
+          max = distances[i][j];
+        }
+      }
+    }
+    return max;
+  }
+
+  getMinDistance(distances) {
+    let min = Infinity;
+    for (let i = 0; i < distances.length; i++) {
+      for (let j = 0; j < distances[i].length; j++) {
+        if (i !== j && distances[i][j] < min) {
+          min = distances[i][j];
+        }
+      }
+    }
+    return min === Infinity ? 0 : min;
+  }
+
+  async generateTripSuggestions(criteria) {
+    // AI-powered trip suggestions based on criteria
+    let query = {};
+    
+    if (criteria.interests.length > 0) {
+      query.category = { $in: criteria.interests };
+    }
+    
+    const places = await Place.find(query)
+      .sort({ rating: -1 })
+      .limit(15);
+
+    // Group suggestions by different themes
+    const suggestions = {
+      recommended: places.slice(0, 6),
+      cultural: places.filter(p => ['temple', 'heritage', 'palace'].includes(p.category)).slice(0, 4),
+      nature: places.filter(p => ['hill-station', 'beach', 'nature', 'wildlife'].includes(p.category)).slice(0, 4),
+      quickTrip: places.filter(p => p.averageVisitDuration <= 120).slice(0, 4),
+      weekend: places.filter(p => p.averageVisitDuration >= 180).slice(0, 3)
+    };
+
+    return suggestions;
+  }
+
+  async calculateImprovement(originalRoute, optimizedRoute) {
+    if (!originalRoute.length || !optimizedRoute.length) return null;
+
+    const originalMetrics = await this.calculateRouteMetrics(originalRoute);
+    const optimizedMetrics = await this.calculateRouteMetrics(optimizedRoute);
+
+    return {
+      distanceReduction: originalMetrics.totalDistance - optimizedMetrics.totalDistance,
+      timeReduction: originalMetrics.totalTime - optimizedMetrics.totalTime,
+      efficiencyImprovement: optimizedMetrics.efficiency - originalMetrics.efficiency,
+      percentageImprovement: {
+        distance: ((originalMetrics.totalDistance - optimizedMetrics.totalDistance) / originalMetrics.totalDistance * 100).toFixed(2),
+        time: ((originalMetrics.totalTime - optimizedMetrics.totalTime) / originalMetrics.totalTime * 100).toFixed(2)
+      }
+    };
+  }
+
+  async calculateRouteMetrics(route) {
+    const routeMetrics = await this.distanceCalculator.calculateRouteMetrics(route);
+    const totalVisitTime = route.reduce((sum, place) => sum + place.averageVisitDuration, 0);
+    
+    return {
+      totalTime: routeMetrics.totalTime + totalVisitTime,
+      totalDistance: routeMetrics.totalDistance,
+      efficiency: route.length / ((routeMetrics.totalTime + totalVisitTime) / 60)
+    };
   }
 }
 
-function generateImprovementRecommendations(analysis) {
-  const recommendations = [];
-
-  // Based on weaknesses
-  if (analysis.weaknesses.includes('High travel time relative to visit time')) {
-    recommendations.push({
-      priority: 'high',
-      category: 'routing',
-      suggestion: 'Consider grouping places by location to reduce travel time',
-      impact: 'Significant time savings'
-    });
-  }
-
-  if (analysis.weaknesses.includes('Long total distance may cause fatigue')) {
-    recommendations.push({
-      priority: 'medium',
-      category: 'planning',
-      suggestion: 'Split trip across multiple days or focus on specific regions',
-      impact: 'Reduced fatigue, better experience quality'
-    });
-  }
-
-  // Based on opportunities
-  if (analysis.opportunities.includes('Additional time available for more attractions or leisure')) {
-    recommendations.push({
-      priority: 'low',
-      category: 'enhancement',
-      suggestion: 'Add local dining experiences or shopping time',
-      impact: 'More comprehensive travel experience'
-    });
-  }
-
-  // Based on risks
-  if (analysis.risks.includes('Some attractions require significant time - plan accordingly')) {
-    recommendations.push({
-      priority: 'high',
-      category: 'timing',
-      suggestion: 'Allocate buffer time and consider priority ranking of attractions',
-      impact: 'Avoid rushed visits, better time management'
-    });
-  }
-
-  return recommendations.length > 0 ? recommendations : [{
-    priority: 'low',
-    category: 'general',
-    suggestion: 'Trip appears well-balanced - consider personal preferences for final adjustments',
-    impact: 'Personalized experience'
-  }];
-}
-
-function getCategoryDistribution(places) {
-  const distribution = {};
-  places.forEach(place => {
-    const category = place.category || 'Other';
-    distribution[category] = (distribution[category] || 0) + 1;
-  });
-  return distribution;
-}
-
-function formatDuration(minutes) {
-  if (minutes < 60) {
-    return `${Math.round(minutes)} mins`;
-  } else {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = Math.round(minutes % 60);
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-  }
-}
-
-module.exports = {
-  generateTrip,
-  getTripSuggestions,
-  optimizeTrip,
-  getTravelMatrix,
-  getUserTrips,
-  getTripById,
-  analyzeTrip
-};
+module.exports = new TripController();

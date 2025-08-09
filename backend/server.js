@@ -20,9 +20,7 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+app.use(cors());
 
 // Enhanced rate limiting with different limits for different endpoints
 const generalLimiter = rateLimit({
@@ -103,7 +101,7 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint with enhanced diagnostics
-app.get('/health', async (req, res) => {
+app.get('/api/health', async (req, res) => {
   try {
     // Check database connection
     const mongoose = require('mongoose');
