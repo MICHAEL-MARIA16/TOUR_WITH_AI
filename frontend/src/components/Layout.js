@@ -2,7 +2,7 @@
 import React from 'react';
 import { MapPin, Clock, Star, Navigation } from 'lucide-react';
 import * as Icons from 'lucide-react';
-console.log(Object.keys(Icons));
+//console.log(Object.keys(Icons));
 
 
 const Layout = ({ children }) => {
@@ -26,7 +26,6 @@ const Layout = ({ children }) => {
             </div>
             <div className="stat-item">
               <Navigation size={16} />
-              <span>Smart Routing</span>
               <span>Smart Routing</span>
             </div>
             <div className="stat-item">
