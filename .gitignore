@@ -193,3 +193,5 @@ artifacts/
 # Terminal 2 - Frontend
 #cd frontend
 #npm start
+# 4. Run the seeding script
+#node utils/seedDatabase.js
