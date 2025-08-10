@@ -1,5 +1,5 @@
 // backend/utils/seedDatabase.js
-const mongoose = require('mongoose');
+const connectDB = require('../config/database');
 const Place = require('../models/Place');
 
 // 20 Curated South Indian Tourist Places
@@ -666,19 +666,6 @@ const southIndianPlaces = [
   }
 ];
 
-// Database connection and seeding functions
-async function connectDatabase() {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tourwithai', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log('✅ Connected to MongoDB');
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
-  }
-}
 
 async function seedPlaces() {
   try {
@@ -876,7 +863,7 @@ async function seedDatabase() {
   try {
     console.log('🚀 Starting South Indian Places Database Seeding...\n');
     
-    await connectDatabase();
+    await connectDB();
     const places = await seedPlaces();
     await validatePlaces();
     await generateStatistics();
@@ -887,14 +874,11 @@ async function seedDatabase() {
     console.log('  1. Start your backend server: npm run dev');
     console.log('  2. Test the places API: GET /api/places');
     console.log('  3. Try route optimization with your favorite places!');
-    
+    process.exit(0);
   } catch (error) {
     console.error('❌ Database seeding failed:', error);
-  } finally {
-    await mongoose.disconnect();
-    console.log('📤 Disconnected from MongoDB');
-    process.exit(0);
-  }
+    process.exit(1);
+  } 
 }
 
 // Export functions for use in other modules
