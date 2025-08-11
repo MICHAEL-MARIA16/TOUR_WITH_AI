@@ -1,4 +1,3 @@
-// frontend/src/components/LocationSelector.js
 import React, { useState, useMemo } from 'react';
 import { 
   Search, 
@@ -9,7 +8,7 @@ import {
   IndianRupee,
   Users,
   Accessibility,
-  CarIcon, CompassIcon,
+  CarIcon,
   X,
   ChevronDown,
   CheckCircle2
@@ -35,11 +34,9 @@ const LocationSelector = ({
   const [kidFriendlyOnly, setKidFriendlyOnly] = useState(false);
   const [wheelchairAccessibleOnly, setWheelchairAccessibleOnly] = useState(false);
 
-  // Filter and sort places
   const filteredPlaces = useMemo(() => {
     let filtered = [...places];
 
-    // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(place =>
@@ -50,17 +47,14 @@ const LocationSelector = ({
       );
     }
 
-    // Category filter
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(place => place.category === selectedCategory);
     }
 
-    // State filter
     if (selectedState !== 'all') {
       filtered = filtered.filter(place => place.state === selectedState);
     }
 
-    // Price filter
     if (priceFilter !== 'all') {
       filtered = filtered.filter(place => {
         const fee = place.entryFee?.indian || 0;
@@ -74,7 +68,6 @@ const LocationSelector = ({
       });
     }
 
-    // Accessibility filters
     if (kidFriendlyOnly) {
       filtered = filtered.filter(place => place.kidFriendly);
     }
@@ -83,7 +76,6 @@ const LocationSelector = ({
       filtered = filtered.filter(place => place.wheelchairAccessible);
     }
 
-    // Sort
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'rating':
@@ -158,16 +150,14 @@ const LocationSelector = ({
 
   return (
     <div className="location-selector">
-      {/* Header */}
       <div className="selector-header">
         <div className="header-title">
           <h3>Select Places</h3>
           <span className="places-count">
-            {filteredPlaces.length} of {places.length} places
+            {selectedPlaces.length} of {places.length} places
           </span>
         </div>
 
-        {/* Selection Summary */}
         {selectedPlaces.length > 0 && (
           <div className="selection-summary">
             <div className="selected-info">
@@ -181,7 +171,6 @@ const LocationSelector = ({
         )}
       </div>
 
-      {/* Search */}
       <div className="search-container">
         <div className="search-input-container">
           <Search className="search-icon" />
@@ -203,7 +192,6 @@ const LocationSelector = ({
         </div>
       </div>
 
-      {/* Filter Bar */}
       <div className="filter-bar">
         <button 
           onClick={() => setShowFilters(!showFilters)}
@@ -229,11 +217,9 @@ const LocationSelector = ({
         </select>
       </div>
 
-      {/* Expanded Filters */}
       {showFilters && (
         <div className="filters-panel">
           <div className="filters-grid">
-            {/* Category Filter */}
             <div className="filter-group">
               <label>Category:</label>
               <select
@@ -250,7 +236,6 @@ const LocationSelector = ({
               </select>
             </div>
 
-            {/* State Filter */}
             <div className="filter-group">
               <label>State:</label>
               <select
@@ -267,7 +252,6 @@ const LocationSelector = ({
               </select>
             </div>
 
-            {/* Price Filter */}
             <div className="filter-group">
               <label>Entry Fee:</label>
               <select
@@ -314,7 +298,6 @@ const LocationSelector = ({
         </div>
       )}
 
-      {/* Places List */}
       <div className="places-list">
         {isLoading ? (
           <div className="loading-places">
@@ -343,7 +326,6 @@ const LocationSelector = ({
                 className={`place-card ${isSelected ? 'selected' : ''}`}
                 onClick={() => handlePlaceToggle(place)}
               >
-                {/* Place Header */}
                 <div className="place-header">
                   <div className="place-title">
                     <div className="place-category" style={{ color: category?.color }}>
@@ -363,7 +345,6 @@ const LocationSelector = ({
                   </div>
                 </div>
 
-                {/* Place Meta */}
                 <div className="place-meta">
                   <div className="meta-row">
                     {place.rating && (
@@ -400,14 +381,12 @@ const LocationSelector = ({
                   </div>
                 </div>
 
-                {/* Place Description */}
                 <p className="place-description">
                   {place.description.length > 120
                     ? `${place.description.substring(0, 120)}...`
                     : place.description}
                 </p>
 
-                {/* Tags */}
                 {place.tags && place.tags.length > 0 && (
                   <div className="place-tags">
                     {place.tags.slice(0, 3).map((tag, index) => (
@@ -423,7 +402,6 @@ const LocationSelector = ({
         )}
       </div>
 
-      {/* Action Buttons */}
       {selectedPlaces.length > 0 && (
         <div className="action-buttons">
           <div className="selection-info">

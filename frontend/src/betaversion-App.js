@@ -36,19 +36,31 @@ function App() {
     loadPlaces();
   }, []);
 
-  const loadPlaces = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await apiService.getAllPlaces();
-      setPlaces(response.data);
-    } catch (err) {
-      setError('Failed to load places. Please refresh the page.');
-      console.error('Error loading places:', err);
-    } finally {
-      setIsLoading(false);
+  const loadPlaces = async (currentFilters = filters) => {
+  try {
+    console.log('Applying filters:', currentFilters); // Debug line
+
+    const queryFilters = {};
+    if (currentFilters.category && currentFilters.category !== 'all') {
+      queryFilters.category = currentFilters.category;
     }
-  };
+    if (currentFilters.budget) {
+      queryFilters.budget = currentFilters.budget;
+    }
+    if (currentFilters.duration) {
+      queryFilters.duration = currentFilters.duration;
+    }
+
+    const response = await apiService.getAllPlaces(queryFilters);
+
+    if (response.success) {
+      setPlaces(response.data.places);
+    }
+  } catch (error) {
+    console.error('Error loading places:', error);
+  }
+};
+
 
   const handlePlaceSelection = (place, isSelected) => {
     if (isSelected) {

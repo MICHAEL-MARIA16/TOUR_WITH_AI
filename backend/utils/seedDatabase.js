@@ -1,4 +1,5 @@
 // backend/utils/seedDatabase.js
+require('dotenv').config();
 const connectDB = require('../config/database');
 const Place = require('../models/Place');
 

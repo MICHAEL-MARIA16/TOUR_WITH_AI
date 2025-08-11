@@ -1,4 +1,3 @@
-// frontend/src/components/ItineraryDisplay.js
 import React, { useState } from 'react';
 import { 
   Clock, 
@@ -40,11 +39,10 @@ const ItineraryDisplay = ({
     );
   }
 
-  // Calculate summary metrics
   const summary = {
     totalPlaces: itinerary.length,
     totalTime: itinerary.reduce((sum, item) => 
-      sum + item.visitDuration + item.travelTimeToNext, 0
+      sum + (item.visitDuration || 0) + (item.travelTimeToNext || 0), 0
     ),
     totalDistance: itinerary.reduce((sum, item) => 
       sum + (item.travelDistanceToNext || 0), 0
@@ -122,7 +120,6 @@ const ItineraryDisplay = ({
 
   return (
     <div className="itinerary-container">
-      {/* Header */}
       <div className="itinerary-header">
         <div className="itinerary-title">
           <Calendar className="title-icon" />
@@ -147,7 +144,6 @@ const ItineraryDisplay = ({
         </div>
       </div>
 
-      {/* Summary */}
       <div className="itinerary-summary">
         <div className="summary-cards">
           <div className="summary-card">
@@ -183,7 +179,6 @@ const ItineraryDisplay = ({
           </div>
         </div>
 
-        {/* Progress */}
         <div className="progress-section">
           <div className="progress-header">
             <span>Progress: {summary.visitedCount}/{summary.totalPlaces} places visited</span>
@@ -202,7 +197,6 @@ const ItineraryDisplay = ({
         </div>
       </div>
 
-      {/* Itinerary Items */}
       <div className="itinerary-list">
         {itinerary.map((item, index) => {
           const isVisited = visitedPlaces.has(item.place.id);
@@ -211,7 +205,6 @@ const ItineraryDisplay = ({
 
           return (
             <div key={item.place.id} className={`itinerary-item ${isVisited ? 'visited' : ''}`}>
-              {/* Timeline connector */}
               <div className="timeline-connector">
                 <div className={`timeline-dot ${isVisited ? 'completed' : ''}`}>
                   {isVisited ? (
@@ -223,9 +216,7 @@ const ItineraryDisplay = ({
                 {!isLast && <div className="timeline-line" />}
               </div>
 
-              {/* Content */}
               <div className="itinerary-content">
-                {/* Main Info */}
                 <div className="place-header">
                   <div className="place-main-info">
                     <div className="place-number">{index + 1}</div>
@@ -260,7 +251,6 @@ const ItineraryDisplay = ({
                   </div>
                 </div>
 
-                {/* Timing Info */}
                 <div className="timing-info">
                   <div className="timing-item">
                     <Clock className="timing-icon" />
@@ -276,7 +266,6 @@ const ItineraryDisplay = ({
                   )}
                 </div>
 
-                {/* Expanded Details */}
                 {isExpanded && (
                   <div className="expanded-details">
                     <div className="place-description">
@@ -342,7 +331,6 @@ const ItineraryDisplay = ({
                   </div>
                 )}
 
-                {/* Travel Info to Next Place */}
                 {!isLast && item.travelTimeToNext > 0 && (
                   <div className="travel-info">
                     <div className="travel-header">
@@ -371,7 +359,6 @@ const ItineraryDisplay = ({
         })}
       </div>
 
-      {/* Settings Info */}
       <div className="itinerary-settings">
         <h4>Route Settings</h4>
         <div className="settings-grid">
@@ -396,7 +383,6 @@ const ItineraryDisplay = ({
         </div>
       </div>
 
-      {/* Tips Section */}
       <div className="itinerary-tips">
         <h4>💡 Travel Tips</h4>
         <ul className="tips-list">
@@ -408,7 +394,6 @@ const ItineraryDisplay = ({
         </ul>
       </div>
 
-      {/* Emergency Contacts */}
       <div className="emergency-info">
         <h4>🆘 Emergency Contacts</h4>
         <div className="emergency-grid">

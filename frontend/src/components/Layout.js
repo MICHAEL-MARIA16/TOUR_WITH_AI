@@ -1,4 +1,3 @@
-// frontend/src/components/Layout.js
 import React from 'react';
 import { MapPin, Clock, Star, Navigation } from 'lucide-react';
 import * as Icons from 'lucide-react';
@@ -85,7 +84,7 @@ const Layout = ({ children }) => {
         </div>
         
         <div className="footer-bottom">
-          <p>&copy; 2024 TourWithAI. All rights reserved.</p>
+          <p>© 2024 TourWithAI. All rights reserved.</p>
           <div className="footer-tech">
             <span>Powered by Google Maps & Gemini AI</span>
           </div>

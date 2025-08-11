@@ -1,4 +1,3 @@
-// frontend/src/components/MapView.js
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import { 
@@ -38,12 +37,12 @@ const MapView = ({
   useEffect(() => {
     const initMap = async () => {
       try {
-        if (!CONSTANTS.GOOGLE_MAPS_API_KEY) {
+        if (!CONSTANTS.Maps_API_KEY) {
           throw new Error('Google Maps API key is not configured');
         }
 
         const loader = new Loader({
-          apiKey: CONSTANTS.GOOGLE_MAPS_API_KEY,
+          apiKey: CONSTANTS.Maps_API_KEY,
           version: 'weekly',
           libraries: ['places', 'geometry']
         });
@@ -512,7 +511,7 @@ const MapView = ({
             <span>{selectedPlaces.length} selected</span>
           </div>
           
-          {optimizedRoute && (
+          {optimizedRoute && optimizedRoute.length > 0 && (
             <div className="stat-item">
               <Navigation className="stat-icon" />
               <span>Route optimized</span>

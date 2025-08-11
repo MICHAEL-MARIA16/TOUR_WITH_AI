@@ -1,15 +1,12 @@
-// frontend/src/utils/constants.js
-
 // App configuration constants
 export const CONSTANTS = {
-  // App Information
   APP_NAME: process.env.REACT_APP_APP_NAME || 'TourWithAI',
   APP_VERSION: process.env.REACT_APP_APP_VERSION || '1.0.0',
   APP_TAGLINE: process.env.REACT_APP_TAGLINE || 'Your Smartest Travel Buddy Through South India',
   
   // API Configuration
   API_BASE_URL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api',
-  GOOGLE_MAPS_API_KEY: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
+  Maps_API_KEY: process.env.REACT_APP_Maps_API_KEY,
   
   // Map Configuration
   DEFAULT_MAP_CENTER: {
@@ -239,25 +236,28 @@ export const API_ENDPOINTS = {
   PLACES: {
     GET_ALL: '/places',
     GET_BY_ID: (id) => `/places/${id}`,
-    GET_BY_CATEGORY: (category) => `/places/category/${category}`,
-    GET_BY_CITY: (city) => `/places/city/${city}`,
-    GET_NEARBY: '/places/nearby',
     GET_STATS: '/places/stats',
-    CHECK_STATUS: (id) => `/places/${id}/status`
   },
-  
+  TRIPS: {
+    GENERATE: '/trips/generate',
+    OPTIMIZE: '/trips/optimize',
+    SUGGESTIONS: '/trips/suggestions',
+    MATRIX: '/trips/matrix',
+    TEMPLATES: '/trips/templates',
+    HISTORY: '/trips',
+  },
   ROUTES: {
     OPTIMIZE: '/routes/optimize',
     SUGGESTIONS: '/routes/suggestions',
     DISTANCE: (from, to) => `/routes/distance/${from}/${to}`,
     MATRIX: '/routes/matrix'
   },
-  
   CHAT: {
     MESSAGE: '/chat',
     SUGGESTIONS: '/chat/suggestions',
     PLACE_INFO: '/chat/place-info'
-  }
+  },
+  HEALTH: '/health'
 };
 
 // Error messages
@@ -267,7 +267,7 @@ export const ERROR_MESSAGES = {
   VALIDATION_ERROR: 'Please check your input and try again.',
   NOT_FOUND: 'The requested resource was not found.',
   RATE_LIMITED: 'Too many requests. Please try again later.',
-  GOOGLE_MAPS_ERROR: 'Error loading Google Maps. Please check your API key.',
+  Maps_ERROR: 'Error loading Google Maps. Please check your API key.',
   GEOLOCATION_ERROR: 'Unable to access your location. Please enable location services.',
   GENERIC_ERROR: 'An unexpected error occurred. Please try again.'
 };
@@ -302,65 +302,20 @@ export const VALIDATION = {
   }
 };
 
-// Theme configuration
-export const THEME_CONFIG = {
-  COLORS: {
-    primary: {
-      50: '#eff6ff',
-      100: '#dbeafe',
-      200: '#bfdbfe',
-      300: '#93c5fd',
-      400: '#60a5fa',
-      500: '#3b82f6',
-      600: '#2563eb',
-      700: '#1d4ed8',
-      800: '#1e40af',
-      900: '#1e3a8a'
-    },
-    secondary: {
-      50: '#f8fafc',
-      100: '#f1f5f9',
-      200: '#e2e8f0',
-      300: '#cbd5e1',
-      400: '#94a3b8',
-      500: '#64748b',
-      600: '#475569',
-      700: '#334155',
-      800: '#1e293b',
-      900: '#0f172a'
-    },
-    success: '#10b981',
-    warning: '#f59e0b',
-    error: '#ef4444',
-    info: '#3b82f6'
-  }
-};
-
-// Performance monitoring thresholds
-export const PERFORMANCE_THRESHOLDS = {
-  ROUTE_OPTIMIZATION_TIMEOUT: 30000, // 30 seconds
-  API_REQUEST_TIMEOUT: 10000, // 10 seconds
-  CHAT_RESPONSE_TIMEOUT: 15000, // 15 seconds
-  MAP_LOAD_TIMEOUT: 10000, // 10 seconds
-  
-  // Web Vitals thresholds
-  LCP_THRESHOLD: 2500, // Largest Contentful Paint
-  FID_THRESHOLD: 100,  // First Input Delay
-  CLS_THRESHOLD: 0.1   // Cumulative Layout Shift
-};
-
 // Export utility functions
 export const UTILS = {
   // Format duration from minutes to human readable
   formatDuration: (minutes) => {
-    if (minutes < 60) return `${minutes}m`;
+    if (minutes < 0) return '0m';
+    if (minutes < 60) return `${Math.round(minutes)}m`;
     const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const mins = Math.round(minutes % 60);
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   },
   
   // Format distance
   formatDistance: (km) => {
+    if (km < 0) return '0m';
     if (km < 1) return `${Math.round(km * 1000)}m`;
     return `${km.toFixed(1)}km`;
   },
@@ -373,7 +328,7 @@ export const UTILS = {
   
   // Check if mobile device
   isMobile: () => {
-    return window.innerWidth <= UI_CONFIG.BREAKPOINTS.mobile;
+    return window.innerWidth <= 768; // Using a fixed value for simplicity
   },
   
   // Debounce function
@@ -401,5 +356,13 @@ export const UTILS = {
         setTimeout(() => inThrottle = false, limit);
       }
     };
+  },
+  timeToMinutes: (timeStr) => {
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    } catch {
+      return 0;
+    }
   }
 };
