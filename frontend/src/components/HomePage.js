@@ -1,47 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { Route, MessageSquare, MapPin, ChevronRight, Loader } from 'lucide-react';
 import { apiService } from '../services/api';
-import ConnectionStatus from './ConnectionStatus';
 
 const HomePage = ({ onPageChange, isConnected }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadStats = async () => {
-    try {
-      setLoading(true);
-      if (isConnected) {
-        const response = await apiService.getPlaceStats();
-        if (response.success) {
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        setLoading(true);
+        if (isConnected) {
+          const response = await apiService.getPlaceStats();
+          if (response.success) {
+            setStats({
+              totalPlaces: response.data.overview.totalPlaces,
+              totalStates: response.data.overview.coverageStates,
+              averageRating: response.data.overview.averageRating
+            });
+          }
+        } else {
           setStats({
-            totalPlaces: response.data.overview.totalPlaces,
-            totalStates: response.data.overview.coverageStates,
-            averageRating: response.data.overview.averageRating
+            totalPlaces: 25,
+            totalStates: 4,
+            averageRating: 4.5
           });
         }
-      } else {
+      } catch (error) {
+        console.error('Error loading stats:', error);
         setStats({
           totalPlaces: 25,
           totalStates: 4,
           averageRating: 4.5
         });
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading stats:', error);
-      setStats({
-        totalPlaces: 25,
-        totalStates: 4,
-        averageRating: 4.5
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isConnected) {
-      loadStats();
-    }
+    };
+    loadStats();
   }, [isConnected]);
 
   const features = [

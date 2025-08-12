@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader, Globe, Route, Target, MessageSquare, Menu, X, ChevronRight, MapPin } from 'lucide-react';
+import { Loader } from 'lucide-react';
 import { apiService } from './services/api';
 import Navigation from './components/Navigation';
 import HomePage from './components/HomePage';

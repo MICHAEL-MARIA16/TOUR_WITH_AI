@@ -23,24 +23,24 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
 
   const svgRef = useRef(null);
 
-  // Use useMemo to prevent re-creation on every render
   const graphDimensions = useMemo(() => ({ width: 800, height: 600 }), []);
   const nodeSize = useMemo(() => ({ radius: 22, fontSize: 12 }), []);
   const categoryConfig = PLACE_CATEGORIES;
 
   const loadAllPlaces = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const placesList = await apiService.getAllPlaces();
-      setPlaces(placesList);
-    } catch (err) {
-      console.error('Error loading places:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await apiService.getAllPlaces();
+      // This is the fix: we now check for the 'allPlaces' key
+      setPlaces(response.allPlaces || []);
+    } catch (err) {
+      console.error('Error loading places:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isConnected) {
@@ -121,7 +121,6 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     }
   };
 
-  // D3 Visualization logic
   useEffect(() => {
     if (!optimizedRoute) return;
 

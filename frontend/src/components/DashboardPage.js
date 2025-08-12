@@ -37,7 +37,7 @@ const DashboardPage = ({ onPageChange, isConnected, onRetry }) => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const tripsResp = await apiService.getAllTrips();
+      const tripsResp = await apiService.getAllPlaces();
       const trips = tripsResp?.success ? tripsResp.data : [];
 
       const totalTrips = trips.length;

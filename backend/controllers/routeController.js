@@ -15,6 +15,7 @@ const optimizeRoute = async (req, res) => {
       preferences = {}
     } = req.body;
 
+    console.log(req.body);
     // Enhanced input validation
     const validation = validateOptimizeRouteInput({
       placeIds,
@@ -718,11 +719,37 @@ function validateOptimizeRouteInput(input) {
 
 async function fetchValidPlaces(placeIds) {
   try {
+    // Separate ObjectIds from string IDs
+    const objectIds = [];
+    const stringIds = [];
+    
+    placeIds.forEach(id => {
+      // Check if the ID looks like a MongoDB ObjectId (24 hex characters)
+      if (typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+        objectIds.push(id);
+      } else {
+        stringIds.push(id);
+      }
+    });
+
+    // Build query conditions
+    const queryConditions = [];
+    
+    if (objectIds.length > 0) {
+      queryConditions.push({ _id: { $in: objectIds } });
+    }
+    
+    if (stringIds.length > 0) {
+      queryConditions.push({ id: { $in: stringIds } });
+    }
+
+    // If no valid conditions, return empty array
+    if (queryConditions.length === 0) {
+      return [];
+    }
+
     const places = await Place.find({
-      $or: [
-        { _id: { $in: placeIds } },
-        { id: { $in: placeIds } }
-      ],
+      $or: queryConditions,
       isActive: true
     }).select('-__v');
 

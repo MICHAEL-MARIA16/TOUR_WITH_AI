@@ -148,6 +148,10 @@ const getAllPlaces = async (req, res) => {
         sortCriteria = { rating: -1, name: 1 };
     }
 
+    const allPlaces = await Place.find();
+
+    console.log('All Places:', allPlaces);
+
     // Execute query with pagination
     const limitNum = Math.min(parseInt(limit) || 50, 100); // Max 100 places per request
     const pageNum = Math.max(parseInt(page) || 1, 1);
@@ -177,6 +181,7 @@ const getAllPlaces = async (req, res) => {
       hasNextPage,
       hasPrevPage,
       data: places,
+      allPlaces,
       filters: {
         category,
         city,

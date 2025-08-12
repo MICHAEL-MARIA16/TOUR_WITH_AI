@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Filter, 
@@ -17,7 +17,7 @@ import { PLACE_CATEGORIES, SOUTH_INDIAN_STATES, UTILS } from '../utils/constants
 import toast from 'react-hot-toast';
 
 const LocationSelector = ({
-  places,
+  places: placesData,  // Renamed to avoid confusion
   selectedPlaces,
   onPlaceSelect,
   onOptimizeRoute,
@@ -25,6 +25,27 @@ const LocationSelector = ({
   isLoading,
   error
 }) => {
+  // Extract places array from API response if needed
+  const places = useMemo(() => {
+    // If placesData is already an array, use it directly
+    if (Array.isArray(placesData)) {
+      return placesData;
+    }
+    
+    // If it's an API response object, extract the data property
+    if (placesData && typeof placesData === 'object' && Array.isArray(placesData.data)) {
+      return placesData.data;
+    }
+    
+    // If it's an API response object with allPlaces property
+    if (placesData && typeof placesData === 'object' && Array.isArray(placesData.allPlaces)) {
+      return placesData.allPlaces;
+    }
+    
+    // Default to empty array
+    return [];
+  }, [placesData]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedState, setSelectedState] = useState('all');
@@ -33,6 +54,13 @@ const LocationSelector = ({
   const [priceFilter, setPriceFilter] = useState('all');
   const [kidFriendlyOnly, setKidFriendlyOnly] = useState(false);
   const [wheelchairAccessibleOnly, setWheelchairAccessibleOnly] = useState(false);
+
+  // Add debug logging
+  useEffect(() => {
+    console.log('LocationSelector - placesData:', placesData);
+    console.log('LocationSelector - extracted places:', places);
+    console.log('LocationSelector - places length:', places.length);
+  }, [placesData, places]);
 
   const filteredPlaces = useMemo(() => {
     let filtered = [...places];
@@ -304,7 +332,7 @@ const LocationSelector = ({
             <div className="loading-spinner"></div>
             <p>Loading places...</p>
           </div>
-        ) : filteredPlaces.length === 0 ? (
+        ) : filteredPlaces.length === 0 && places.length > 0 ? (
           <div className="no-places">
             <div className="no-places-icon">🔍</div>
             <h4>No places found</h4>
@@ -315,6 +343,15 @@ const LocationSelector = ({
               </button>
             ) : null}
           </div>
+        ) : filteredPlaces.length === 0 && places.length === 0 ? (
+          <div className="no-places">
+            <div className="no-places-icon">🏛️</div>
+            <h4>No places loaded</h4>
+            <p>Please check your connection and try again</p>
+            <button onClick={() => window.location.reload()} className="retry-btn">
+              Retry
+            </button>
+          </div>
         ) : (
           filteredPlaces.map((place) => {
             const isSelected = selectedPlaces.some(p => p.id === place.id);
@@ -322,14 +359,14 @@ const LocationSelector = ({
 
             return (
               <div
-                key={place.id}
+                key={place.id || place._id}
                 className={`place-card ${isSelected ? 'selected' : ''}`}
                 onClick={() => handlePlaceToggle(place)}
               >
                 <div className="place-header">
                   <div className="place-title">
                     <div className="place-category" style={{ color: category?.color }}>
-                      {category?.icon}
+                      {category?.icon || '🏛️'}
                     </div>
                     <div className="place-info">
                       <h4>{place.name}</h4>
@@ -362,7 +399,7 @@ const LocationSelector = ({
                     <div className="meta-item">
                       <IndianRupee className="meta-icon" />
                       <span>
-                        {place.entryFee?.indian === 0 ? 'Free' : `₹${place.entryFee?.indian}`}
+                        {place.entryFee?.indian === 0 ? 'Free' : `₹${place.entryFee?.indian || 0}`}
                       </span>
                     </div>
                   </div>
@@ -382,9 +419,9 @@ const LocationSelector = ({
                 </div>
 
                 <p className="place-description">
-                  {place.description.length > 120
+                  {place.description && place.description.length > 120
                     ? `${place.description.substring(0, 120)}...`
-                    : place.description}
+                    : place.description || 'No description available'}
                 </p>
 
                 {place.tags && place.tags.length > 0 && (
@@ -394,6 +431,9 @@ const LocationSelector = ({
                         {tag}
                       </span>
                     ))}
+                    {place.tags.length > 3 && (
+                      <span className="tag more">+{place.tags.length - 3}</span>
+                    )}
                   </div>
                 )}
               </div>

@@ -1,4 +1,3 @@
-// backend/server.js - Updated with trip planning integration
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -11,7 +10,7 @@ const connectDB = require('./config/database');
 const placeRoutes = require('./routes/places');
 const routeRoutes = require('./routes/routes');
 const chatRoutes = require('./routes/chat');
-const tripRoutes = require('./routes/trips'); // New trip planning routes
+const tripRoutes = require('./routes/trips');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,12 +19,12 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Security middleware
-app.use(cors());
+app.use(helmet());
 
-// Enhanced rate limiting with different limits for different endpoints
+// Enhanced rate limiting
 const generalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // 100 requests per windowMs
+  windowMs: 15 * 60 * 1000, 
+  max: 100,
   message: {
     error: 'Too many requests from this IP, please try again later.',
     retryAfter: '15 minutes'
@@ -34,45 +33,26 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Stricter rate limiting for intensive operations
 const intensiveLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 requests for trip planning operations
+  windowMs: 15 * 60 * 1000,
+  max: 20, 
   message: {
     error: 'Too many optimization requests. Please try again later.',
     retryAfter: '15 minutes'
   }
 });
 
-// Apply general rate limiting to all API routes
-app.use('/api/', generalLimiter);
-
-// Apply intensive rate limiting to trip planning routes
+// Apply rate limiting
+// app.use('/api/', generalLimiter);
 app.use('/api/trips/generate', intensiveLimiter);
 app.use('/api/trips/optimize', intensiveLimiter);
 app.use('/api/trips/matrix', intensiveLimiter);
-app.use('/api/routes/optimize', intensiveLimiter);
+app.use('/api/routes/', placeRoutes);
 app.use('/api/routes/matrix', intensiveLimiter);
 
-// CORS configuration
+// Correct CORS configuration
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests from your frontend domains
-    const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      'http://localhost:3001', // For development
-      'https://your-domain.com' // Add your production domain
-    ];
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -80,17 +60,9 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Body parsing middleware with larger limits for trip data
-app.use(express.json({ 
-  limit: '50mb',
-  verify: (req, res, buf) => {
-    req.rawBody = buf;
-  }
-}));
-app.use(express.urlencoded({ 
-  extended: true, 
-  limit: '50mb' 
-}));
+// Body parsing middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -103,63 +75,15 @@ app.use((req, res, next) => {
 // Health check endpoint with enhanced diagnostics
 app.get('/api/health', async (req, res) => {
   try {
-    // Check database connection
     const mongoose = require('mongoose');
     const dbStatus = mongoose.connection.readyState;
-    const dbStates = {
-      0: 'disconnected',
-      1: 'connected',
-      2: 'connecting',
-      3: 'disconnecting'
-    };
-
-    // Check environment variables
-    const envCheck = {
-      nodeEnv: process.env.NODE_ENV || 'not-set',
-      mongoUri: process.env.MONGODB_URI ? 'configured' : 'missing',
-      googleMapsKey: process.env.GOOGLE_MAPS_API_KEY ? 'configured' : 'missing',
-      frontendUrl: process.env.FRONTEND_URL || 'default'
-    };
-
-    // System info
-    const systemInfo = {
-      uptime: process.uptime(),
-      memory: {
-        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
-      },
-      nodeVersion: process.version,
-      platform: process.platform
-    };
-
     res.status(200).json({
       status: 'OK',
-      message: 'TourWithAI Backend is running',
-      timestamp: new Date().toISOString(),
-      services: {
-        database: dbStates[dbStatus],
-        tripPlanner: 'active',
-        routeOptimizer: 'active',
-        distanceCalculator: 'active',
-        aiChat: 'active'
-      },
-      environment: envCheck,
-      system: systemInfo,
-      endpoints: {
-        places: '/api/places',
-        routes: '/api/routes', 
-        trips: '/api/trips',
-        chat: '/api/chat'
-      }
+      database: dbStatus === 1 ? 'connected' : 'disconnected',
+      timestamp: new Date().toISOString()
     });
-
   } catch (error) {
-    console.error('Health check error:', error);
-    res.status(500).json({
-      status: 'ERROR',
-      message: 'Health check failed',
-      error: error.message
-    });
+    res.status(500).json({ status: 'ERROR', message: error.message });
   }
 });
 
@@ -167,7 +91,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/places', placeRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/chat', chatRoutes);
-app.use('/api/trips', tripRoutes); // New comprehensive trip planning API
+app.use('/api/trips', tripRoutes);
 
 // API documentation endpoint
 app.get('/api/docs', (req, res) => {
@@ -377,37 +301,7 @@ app.use((err, req, res, next) => {
 // Graceful shutdown handler
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
-  
-  const mongoose = require('mongoose');
-  mongoose.connection.close(() => {
-    console.log('MongoDB connection closed.');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  
-  const mongoose = require('mongoose');
-  mongoose.connection.close(() => {
-    console.log('MongoDB connection closed.');
-    process.exit(0);
-  });
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit in production, just log the error
-  if (process.env.NODE_ENV !== 'production') {
-    process.exit(1);
-  }
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
+  process.exit(0);
 });
 
 // Start server

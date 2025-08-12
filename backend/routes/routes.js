@@ -42,7 +42,7 @@ const validateOptimizationRequest = (req, res, next) => {
   next();
 };
 
-// POST /api/routes/optimize - Optimize route for selected places
+// POST  - Optimize route for selected places
 // Body: { 
 //   placeIds: array, 
 //   startTime?: string, 
