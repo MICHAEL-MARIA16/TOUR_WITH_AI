@@ -1,107 +1,251 @@
-import axios from 'axios';
-import { API_ENDPOINTS } from '../utils/constants';
+// services/api.js - Complete version with all chat methods
 
-// HTTP Status Codes constants
-const HTTP_STATUS = {
-    BAD_REQUEST: 400,
-    UNAUTHORIZED: 401,
-    FORBIDDEN: 403,
-    NOT_FOUND: 404,
-    CONFLICT: 409,
-    TOO_MANY_REQUESTS: 429,
-    INTERNAL_SERVER_ERROR: 500,
-    SERVICE_UNAVAILABLE: 503
-};
+const API_BASE_URL = 'http://localhost:5000/api';
 
-// Retry defaults
-const DEFAULTS = {
-    MAX_RETRIES: 3,
-    RETRY_BASE_DELAY: 1000 // in milliseconds
-};
-
-const API_BASE_URL =
-    process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
-
-const api = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 30000,
-    headers: { 'Content-Type': 'application/json' }
-});
-
-api.interceptors.response.use(
-    response => response.data,
-    error => {
-        console.error('API Error:', error.response?.data || error.message);
-        throw new Error(error.response?.data?.message || error.message || 'An unexpected error occurred');
+class ApiService {
+  async makeRequest(endpoint, options = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    console.log('🌐 API Request:', url);
+    console.log('📤 Request options:', options);
+    
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        ...options,
+      });
+      
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error response:', errorText);
+        
+        // Try to parse error as JSON
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.message || `HTTP ${response.status}: ${response.statusText}`);
+        } catch {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      }
+      
+      const data = await response.json();
+      console.log('✅ API Response:', data);
+      return data;
+      
+    } catch (error) {
+      console.error('💥 API Error:', error);
+      throw error;
     }
-);
+  }
 
-export const apiService = {
-    // Places
-    getAllPlaces: async (filters = {}) => {
-        const params = new URLSearchParams(filters).toString();
-        const response = await api.get(`${API_ENDPOINTS.PLACES.GET_ALL}?${params}`);
-        // This is the fix: we now correctly return the nested 'data' array.
-        return response.data?.data || [];
-    },
-    getPlaceById: id => api.get(API_ENDPOINTS.PLACES.GET_BY_ID(id)),
-    getPlaceStats: async () => {
-        const response = await api.get(API_ENDPOINTS.PLACES.GET_STATS);
-        return response.data;
-    },
+  // Places API methods
+  async getAllPlaces() {
+    const response = await this.makeRequest('/places');
+    
+    if (response.success && Array.isArray(response.places)) {
+      return response.places;
+    }
+    
+    throw new Error('Invalid response structure from places API');
+  }
 
-    // Trips
-    getAllTrips: async () => api.get(API_ENDPOINTS.TRIPS.HISTORY),
-    generateTrip: async (tripData) => {
-        if (!tripData) throw new Error('Trip data is required');
-        const response = await api.post(API_ENDPOINTS.TRIPS.GENERATE, tripData);
-        return response.data;
-    },
-    optimizeTrip: async (routeData) => {
-        if (!routeData?.placeIds?.length) throw new Error('Place IDs are required for optimization');
-        const response = await api.post(API_ENDPOINTS.ROUTES.OPTIMIZE, routeData);
-        return response.data;
-    },
-    getTripSuggestions: async (params = {}) => {
-        return api.get(API_ENDPOINTS.TRIPS.SUGGESTIONS, { params });
-    },
-    getTripTemplates: async () => {
-        const response = await api.get(API_ENDPOINTS.TRIPS.TEMPLATES);
-        return response.data?.templates || [];
-    },
+  async getPlacesByCategory(category) {
+    const response = await this.makeRequest(`/places/category/${category}`);
+    return response;
+  }
 
-    // Routes
-    optimizeRoute: async (routeData) => {
-        if (!routeData?.placeIds?.length) throw new Error('Place IDs are required for optimization');
-        const response = await api.post(API_ENDPOINTS.ROUTES.OPTIMIZE, routeData);
-        return response.data;
-    },
-    getSuggestedRoutes: async (params = {}) => {
-        return api.get(API_ENDPOINTS.ROUTES.SUGGESTIONS, { params });
-    },
-    getDistanceBetweenPlaces: async (fromId, toId) => {
-        if (!fromId || !toId) throw new Error('Both from and to place IDs are required');
-        return api.get(API_ENDPOINTS.ROUTES.DISTANCE(fromId, toId));
-    },
-    getTravelMatrix: async (placeIds) => {
-        if (!placeIds || !Array.isArray(placeIds)) throw new Error('Place IDs array is required');
-        return api.post(API_ENDPOINTS.ROUTES.MATRIX, { placeIds });
-    },
+  async getNearbyPlaces(latitude, longitude, radius = 10) {
+    const response = await this.makeRequest(`/places/nearby?latitude=${latitude}&longitude=${longitude}&radius=${radius}`);
+    return response;
+  }
 
-    // Chat/AI
-    chatWithAI: async (message, context = {}) => {
-        if (!message) throw new Error('Message is required');
-        return api.post(API_ENDPOINTS.CHAT.MESSAGE, { message, context });
-    },
-    getTravelSuggestions: async (preferences) => {
-        if (!preferences) throw new Error('Preferences are required');
-        return api.post(API_ENDPOINTS.CHAT.SUGGESTIONS, preferences);
-    },
-    getPlaceInfo: async (placeId, question = '') => {
-        if (!placeId) throw new Error('Place ID is required');
-        return api.post(API_ENDPOINTS.CHAT.PLACE_INFO, { placeId, question });
-    },
+  // Route optimization methods
+  async optimizeRoute(optimizationData) {
+    console.log('🔄 Transforming optimization data:', optimizationData);
+    
+    // Validate required data
+    if (!optimizationData.places || !Array.isArray(optimizationData.places)) {
+      throw new Error('Place objects are required, not just IDs. Please pass full place objects.');
+    }
 
-    // Health check
-    healthCheck: async () => api.get('/health'),
-};
+    if (optimizationData.places.length < 2) {
+      throw new Error('At least 2 places are required for route optimization.');
+    }
+    
+    const requestData = {
+      places: optimizationData.places,
+      preferences: {
+        startTime: optimizationData.startTime || '09:00',
+        totalTimeAvailable: optimizationData.totalTimeAvailable || 480, // 8 hours in minutes
+        optimizationLevel: optimizationData.optimizationLevel || 'fast'
+      },
+      userId: 'anonymous', // Default user
+      algorithm: optimizationData.optimizationLevel === 'fast' ? 'greedy' : 'advanced'
+    };
+    
+    console.log('📤 Sending to backend:', requestData);
+    
+    try {
+      const response = await this.makeRequest('/trips/optimize', {
+        method: 'POST',
+        body: JSON.stringify(requestData),
+      });
+      
+      if (!response) {
+        throw new Error('No response received from optimization service');
+      }
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Optimization failed');
+      }
+      
+      console.log('🔍 Full optimization response structure:', JSON.stringify(response, null, 2));
+      
+      return response;
+      
+    } catch (error) {
+      console.error('💥 Optimization request failed:', error);
+      throw error;
+    }
+  }
+
+  // ✅ CHAT API METHODS - These were missing!
+  async chatWithAI(message, context = {}) {
+    const requestData = {
+      message,
+      context
+    };
+
+    try {
+      const response = await this.makeRequest('/chat', {
+        method: 'POST',
+        body: JSON.stringify(requestData),
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Chat API error:', error);
+      // Return fallback response structure to match expected format
+      return {
+        success: true,
+        data: {
+          message: "I'm having trouble connecting right now. Please try asking your question again, or check if the backend server is running.",
+          timestamp: new Date().toISOString(),
+          fallback: true
+        }
+      };
+    }
+  }
+
+  async getTravelSuggestions(preferences) {
+    const requestData = {
+      interests: preferences.interests || [],
+      duration: preferences.duration || 'full-day',
+      budget: preferences.budget || 'moderate',
+      travelStyle: preferences.travelStyle || 'balanced',
+      season: preferences.season || 'any'
+    };
+
+    try {
+      const response = await this.makeRequest('/chat/suggestions', {
+        method: 'POST',
+        body: JSON.stringify(requestData),
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Travel suggestions API error:', error);
+      return {
+        success: true,
+        data: {
+          suggestions: "I'd be happy to suggest some places! South India has amazing temples like Meenakshi Temple in Madurai, beautiful hill stations like Ooty and Munnar, and historic sites like Hampi. Each offers unique experiences for different types of travelers.",
+          fallback: true
+        }
+      };
+    }
+  }
+
+  async getPlaceInfo(placeId, question = '') {
+    const requestData = {
+      placeId,
+      question
+    };
+
+    try {
+      const response = await this.makeRequest('/chat/place-info', {
+        method: 'POST',
+        body: JSON.stringify(requestData),
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Place info API error:', error);
+      return {
+        success: true,
+        data: {
+          information: "I'm unable to fetch detailed information about this place right now. You can try asking more specific questions, or check if the backend server is properly connected.",
+          fallback: true
+        }
+      };
+    }
+  }
+
+  // Utility methods
+  async getPlaceStats() {
+    return await this.makeRequest('/places/stats');
+  }
+
+  async healthCheck() {
+    return await this.makeRequest('/health');
+  }
+
+  // Distance calculation
+  async getDistanceMatrix(origins, destinations) {
+    const requestData = {
+      origins,
+      destinations
+    };
+
+    const response = await this.makeRequest('/distance/matrix', {
+      method: 'POST',
+      body: JSON.stringify(requestData),
+    });
+
+    return response;
+  }
+
+  // Trip management methods (for future use)
+  async createTrip(tripData) {
+    const response = await this.makeRequest('/trips', {
+      method: 'POST',
+      body: JSON.stringify(tripData),
+    });
+    return response;
+  }
+
+  async getTrips(userId) {
+    const response = await this.makeRequest(`/trips?userId=${userId}`);
+    return response;
+  }
+
+  async updateTrip(tripId, tripData) {
+    const response = await this.makeRequest(`/trips/${tripId}`, {
+      method: 'PUT',
+      body: JSON.stringify(tripData),
+    });
+    return response;
+  }
+
+  async deleteTrip(tripId) {
+    const response = await this.makeRequest(`/trips/${tripId}`, {
+      method: 'DELETE',
+    });
+    return response;
+  }
+}
+
+export const apiService = new ApiService();

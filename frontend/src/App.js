@@ -22,6 +22,7 @@ const App = () => {
       } else {
         setIsConnected(false);
       }
+      
     } catch (error) {
       console.error('Backend connection failed:', error);
       setIsConnected(false);

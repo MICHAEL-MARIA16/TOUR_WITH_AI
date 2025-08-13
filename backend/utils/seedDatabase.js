@@ -36,7 +36,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['hindu temple', 'architecture', 'cultural heritage', 'dravidian style', 'goddess meenakshi'],
-    rating: 4.8
+    rating: 4.8,
+    isActive: true
   },
   {
     id: 'mysore-palace-karnataka',
@@ -69,7 +70,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['royal palace', 'indo-saracenic architecture', 'wadiyar dynasty', 'illumination'],
-    rating: 4.6
+    rating: 4.6,
+    isActive: true
   },
   {
     id: 'ooty-hill-station-tamilnadu',
@@ -102,7 +104,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['hill station', 'tea gardens', 'nilgiri mountains', 'toy train', 'botanical garden'],
-    rating: 4.4
+    rating: 4.4,
+    isActive: true
   },
   {
     id: 'hampi-karnataka-heritage',
@@ -135,7 +138,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['unesco world heritage', 'vijayanagara empire', 'ancient ruins', 'historical site'],
-    rating: 4.7
+    rating: 4.7,
+    isActive: true
   },
   {
     id: 'marina-beach-chennai',
@@ -168,7 +172,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['urban beach', 'bay of bengal', 'evening walks', 'street food'],
-    rating: 4.2
+    rating: 4.2,
+    isActive: true
   },
   {
     id: 'backwaters-alleppey-kerala',
@@ -201,7 +206,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['backwaters', 'houseboat cruise', 'kerala canals', 'rural life'],
-    rating: 4.5
+    rating: 4.5,
+    isActive: true
   },
   {
     id: 'munnar-tea-gardens-kerala',
@@ -234,7 +240,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['tea plantations', 'hill station', 'western ghats', 'nilgiri tahr'],
-    rating: 4.6
+    rating: 4.6,
+    isActive: true
   },
   {
     id: 'charminar-hyderabad-telangana',
@@ -267,7 +274,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['qutb shahi architecture', 'hyderabad symbol', 'heritage monument', 'bazaars'],
-    rating: 4.3
+    rating: 4.3,
+    isActive: true
   },
   {
     id: 'golconda-fort-hyderabad',
@@ -300,7 +308,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['medieval fort', 'qutb shahi dynasty', 'acoustic architecture', 'diamond trade'],
-    rating: 4.4
+    rating: 4.4,
+    isActive: true
   },
   {
     id: 'rameshwaram-temple-tamilnadu',
@@ -333,7 +342,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['jyotirlinga', 'lord shiva', 'pilgrimage site', 'sacred corridors'],
-    rating: 4.7
+    rating: 4.7,
+    isActive: true
   },
   {
     id: 'mahabalipuram-shore-temple',
@@ -366,7 +376,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['unesco world heritage', 'pallava architecture', 'rock-cut temples', 'shore temple'],
-    rating: 4.5
+    rating: 4.5,
+    isActive: true
   },
   {
     id: 'coorg-coffee-plantations-karnataka',
@@ -399,7 +410,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['coffee plantations', 'western ghats', 'coorgi culture', 'hill station'],
-    rating: 4.5
+    rating: 4.5,
+    isActive: true
   },
   {
     id: 'kanyakumari-southern-tip',
@@ -432,7 +444,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['southernmost point', 'confluence of seas', 'sunrise sunset', 'vivekananda memorial'],
-    rating: 4.3
+    rating: 4.3,
+    isActive: true
   },
   {
     id: 'bandipur-wildlife-sanctuary',
@@ -465,7 +478,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['wildlife sanctuary', 'tiger reserve', 'nilgiri biosphere', 'safari'],
-    rating: 4.4
+    rating: 4.4,
+    isActive: true
   },
   {
     id: 'tirumala-tirupati-temple',
@@ -498,7 +512,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['lord venkateswara', 'seven hills', 'richest temple', 'pilgrimage'],
-    rating: 4.6
+    rating: 4.6,
+    isActive: true
   },
   {
     id: 'wayanad-kerala-hills',
@@ -531,7 +546,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['spice plantations', 'western ghats', 'wildlife sanctuary', 'edakkal caves'],
-    rating: 4.5
+    rating: 4.5,
+    isActive: true
   },
   {
     id: 'pondicherry-french-quarter',
@@ -564,7 +580,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['french colonial', 'heritage architecture', 'cultural fusion', 'aurobindo ashram'],
-    rating: 4.2
+    rating: 4.2,
+    isActive: true
   },
   {
     id: 'brihadeshwara-temple-thanjavur',
@@ -597,7 +614,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['unesco world heritage', 'chola architecture', 'big temple', 'lord shiva'],
-    rating: 4.7
+    rating: 4.7,
+    isActive: true
   },
   {
     id: 'belur-halebidu-temples',
@@ -630,7 +648,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: false,
     tags: ['hoysala architecture', 'stone carvings', 'chennakeshava temple', 'hoysaleswara temple'],
-    rating: 4.6
+    rating: 4.6,
+    isActive: true
   },
   {
     id: 'gokarna-karnataka-beaches',
@@ -663,7 +682,8 @@ const southIndianPlaces = [
     kidFriendly: true,
     wheelchairAccessible: true,
     tags: ['pristine beaches', 'pilgrimage site', 'mahabaleshwar temple', 'arabian sea'],
-    rating: 4.4
+    rating: 4.4,
+    isActive: true
   }
 ];
 

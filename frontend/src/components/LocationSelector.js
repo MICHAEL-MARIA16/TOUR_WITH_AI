@@ -25,24 +25,30 @@ const LocationSelector = ({
   isLoading,
   error
 }) => {
-  // Extract places array from API response if needed
+  // Extract places array from API response - FIXED VERSION
   const places = useMemo(() => {
     // If placesData is already an array, use it directly
     if (Array.isArray(placesData)) {
       return placesData;
     }
     
-    // If it's an API response object, extract the data property
-    if (placesData && typeof placesData === 'object' && Array.isArray(placesData.data)) {
-      return placesData.data;
-    }
-    
-    // If it's an API response object with allPlaces property
-    if (placesData && typeof placesData === 'object' && Array.isArray(placesData.allPlaces)) {
-      return placesData.allPlaces;
+    // If it's an API response object, prioritize the 'data' property for filtered results
+    if (placesData && typeof placesData === 'object') {
+      // First check for 'data' property (filtered results from API)
+      if (Array.isArray(placesData.data)) {
+        console.log('Using filtered data from API response:', placesData.data.length, 'places');
+        return placesData.data;
+      }
+      
+      // Fallback to 'allPlaces' only if 'data' is not available
+      if (Array.isArray(placesData.allPlaces)) {
+        console.log('Using allPlaces as fallback:', placesData.allPlaces.length, 'places');
+        return placesData.allPlaces;
+      }
     }
     
     // Default to empty array
+    console.log('No valid places data found, returning empty array');
     return [];
   }, [placesData]);
 
@@ -60,6 +66,18 @@ const LocationSelector = ({
     console.log('LocationSelector - placesData:', placesData);
     console.log('LocationSelector - extracted places:', places);
     console.log('LocationSelector - places length:', places.length);
+    
+    // Log the structure of the API response for debugging
+    if (placesData && typeof placesData === 'object' && !Array.isArray(placesData)) {
+      console.log('API Response structure:', {
+        hasData: Array.isArray(placesData.data),
+        dataCount: placesData.data?.length,
+        hasAllPlaces: Array.isArray(placesData.allPlaces),
+        allPlacesCount: placesData.allPlaces?.length,
+        filters: placesData.filters,
+        success: placesData.success
+      });
+    }
   }, [placesData, places]);
 
   const filteredPlaces = useMemo(() => {
@@ -163,6 +181,21 @@ const LocationSelector = ({
     return count;
   };
 
+  // Show API filter info when available
+  const getApiFilterInfo = () => {
+    if (placesData && placesData.filters) {
+      const filterInfo = [];
+      if (placesData.filters.category) {
+        filterInfo.push(`Category: ${placesData.filters.category}`);
+      }
+      if (placesData.filters.state) {
+        filterInfo.push(`State: ${placesData.filters.state}`);
+      }
+      return filterInfo.length > 0 ? filterInfo.join(', ') : null;
+    }
+    return null;
+  };
+
   if (error) {
     return (
       <div className="location-selector error">
@@ -176,6 +209,8 @@ const LocationSelector = ({
     );
   }
 
+  const apiFilterInfo = getApiFilterInfo();
+
   return (
     <div className="location-selector">
       <div className="selector-header">
@@ -183,6 +218,9 @@ const LocationSelector = ({
           <h3>Select Places</h3>
           <span className="places-count">
             {selectedPlaces.length} of {places.length} places
+            {apiFilterInfo && (
+              <span className="api-filter-info"> • API Filters: {apiFilterInfo}</span>
+            )}
           </span>
         </div>
 
@@ -198,6 +236,16 @@ const LocationSelector = ({
           </div>
         )}
       </div>
+
+      {/* Show API response info for debugging */}
+      {placesData && typeof placesData === 'object' && !Array.isArray(placesData) && (
+        <div className="api-debug-info" style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+          API Response: {placesData.success ? '✅' : '❌'} | 
+          Data: {placesData.data?.length || 0} | 
+          All: {placesData.allPlaces?.length || 0} | 
+          Total: {placesData.totalCount || 0}
+        </div>
+      )}
 
       <div className="search-container">
         <div className="search-input-container">

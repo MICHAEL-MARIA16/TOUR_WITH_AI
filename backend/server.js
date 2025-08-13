@@ -1,3 +1,5 @@
+// Update your server.js - Fix rate limiting configuration
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -11,6 +13,7 @@ const placeRoutes = require('./routes/places');
 const routeRoutes = require('./routes/routes');
 const chatRoutes = require('./routes/chat');
 const tripRoutes = require('./routes/trips');
+const distanceRoutes = require('./routes/distance');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,22 +38,14 @@ const generalLimiter = rateLimit({
 
 const intensiveLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, 
+  max: 100, 
   message: {
     error: 'Too many optimization requests. Please try again later.',
     retryAfter: '15 minutes'
   }
 });
 
-// Apply rate limiting
-// app.use('/api/', generalLimiter);
-app.use('/api/trips/generate', intensiveLimiter);
-app.use('/api/trips/optimize', intensiveLimiter);
-app.use('/api/trips/matrix', intensiveLimiter);
-app.use('/api/routes/', placeRoutes);
-app.use('/api/routes/matrix', intensiveLimiter);
-
-// Correct CORS configuration
+// CORS configuration - MUST come before routes
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
@@ -60,7 +55,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Body parsing middleware
+// Body parsing middleware - MUST come before routes
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -72,26 +67,59 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint with enhanced diagnostics
+// Apply general rate limiting to all API routes (but allow more requests)
+app.use('/api/', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200, // Increased from 100
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: '15 minutes'
+  }
+}));
+
+// Apply intensive rate limiting only to specific optimization endpoints
+app.use('/api/trips/generate', intensiveLimiter);
+app.use('/api/trips/optimize', intensiveLimiter);
+app.use('/api/trips/matrix', intensiveLimiter);
+app.use('/api/routes/optimize', intensiveLimiter);
+app.use('/api/routes/matrix', intensiveLimiter);
+
+// Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
     const mongoose = require('mongoose');
     const dbStatus = mongoose.connection.readyState;
+    
+    let placeCount = 0;
+    try {
+      const Place = require('./models/Place');
+      placeCount = await Place.countDocuments();
+    } catch (dbError) {
+      console.log('Database query failed:', dbError.message);
+    }
+    
     res.status(200).json({
       status: 'OK',
+      success: true,
       database: dbStatus === 1 ? 'connected' : 'disconnected',
+      placesInDatabase: placeCount,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ status: 'ERROR', message: error.message });
+    res.status(500).json({ 
+      status: 'ERROR', 
+      success: false, 
+      message: error.message 
+    });
   }
 });
 
-// API routes
+// Mount API routes
 app.use('/api/places', placeRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/trips', tripRoutes);
+app.use('/api/distance', distanceRoutes);
 
 // API documentation endpoint
 app.get('/api/docs', (req, res) => {
@@ -111,24 +139,27 @@ app.get('/api/docs', (req, res) => {
           'GET /places/nearby?latitude=12.9716&longitude=77.5946 - Get nearby places'
         ]
       },
-      routes: {
-        base: '/routes',
-        description: 'Legacy route optimization (use /trips for new features)',
-        methods: ['GET', 'POST'],
-        examples: [
-          'POST /routes/optimize - Basic route optimization',
-          'GET /routes/suggestions - Get route suggestions'
-        ]
-      },
       trips: {
         base: '/trips',
         description: 'Advanced trip planning with AI optimization',
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         examples: [
-          'POST /trips/generate - Generate optimized trip',
-          'POST /trips/optimize - Optimize existing trip',
-          'GET /trips/suggestions - Get AI-powered suggestions',
-          'POST /trips/matrix - Calculate travel matrix'
+          'GET /trips - Get all trips for user',
+          'GET /trips/:id - Get specific trip',
+          'POST /trips/generate - Generate new trip',
+          'POST /trips/optimize - Optimize trip places',
+          'GET /trips/templates - Get trip templates',
+          'PUT /trips/:id - Update trip',
+          'DELETE /trips/:id - Delete trip'
+        ]
+      },
+      routes: {
+        base: '/routes',
+        description: 'Legacy route optimization',
+        methods: ['GET', 'POST'],
+        examples: [
+          'POST /routes/optimize - Basic route optimization',
+          'GET /routes/suggestions - Get route suggestions'
         ]
       },
       chat: {
@@ -136,71 +167,55 @@ app.get('/api/docs', (req, res) => {
         description: 'AI chat assistant for travel planning',
         methods: ['POST'],
         examples: [
-          'POST /chat - Chat with AI assistant',
-          'POST /chat/suggestions - Get AI travel suggestions'
+          'POST /chat - Chat with AI assistant'
+        ]
+      },
+      distance: {
+        base: '/distance',
+        description: 'Distance and travel time calculations',
+        methods: ['POST'],
+        examples: [
+          'POST /distance/matrix - Calculate distance matrix'
         ]
       }
-    },
-    algorithms: {
-      greedy: 'Fast optimization for up to 20 places',
-      genetic: 'Advanced optimization for complex problems',
-      dynamicProgramming: 'Optimal solutions for up to 12 places',
-      simulatedAnnealing: 'Escape local optima for better solutions',
-      antColony: 'Nature-inspired optimization',
-      multiObjective: 'Balance multiple criteria simultaneously'
-    },
-    rateLimit: {
-      general: '100 requests per 15 minutes',
-      intensive: '20 optimization requests per 15 minutes'
     }
   });
 });
 
-// API status endpoint for monitoring
-app.get('/api/status', async (req, res) => {
+// Test endpoint to verify trip optimization is working
+app.get('/api/test/trips/optimize', async (req, res) => {
+  res.json({
+    success: true,
+    message: 'Trip optimization endpoint is accessible',
+    method: 'This is a GET test endpoint. Use POST /api/trips/optimize for actual optimization.',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Debug endpoint to list all places
+app.get('/api/debug/places', async (req, res) => {
   try {
-    const mongoose = require('mongoose');
     const Place = require('./models/Place');
-    const { Trip } = require('./models/Trip');
-
-    // Get database statistics
-    const [placeCount, tripCount] = await Promise.all([
-      Place.countDocuments({}),
-      Trip.countDocuments({})
-    ]);
-
-    // Memory usage
-    const memoryUsage = process.memoryUsage();
-
+    const places = await Place.find({}).limit(5);
+    const count = await Place.countDocuments();
+    
     res.status(200).json({
-      status: 'operational',
-      timestamp: new Date().toISOString(),
-      database: {
-        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-        places: placeCount,
-        trips: tripCount
-      },
-      performance: {
-        uptime: `${Math.floor(process.uptime())}s`,
-        memoryUsage: {
-          rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
-          heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
-          heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`
-        }
-      },
-      services: {
-        tripPlanning: 'active',
-        routeOptimization: 'active',
-        aiChat: 'active',
-        distanceCalculation: 'active'
-      }
+      success: true,
+      totalPlaces: count,
+      samplePlaces: places.map(place => ({
+        id: place.id || place._id,
+        name: place.name,
+        city: place.city,
+        state: place.state,
+        category: place.category
+      })),
+      message: `Found ${count} places in database`
     });
-
   } catch (error) {
     res.status(500).json({
-      status: 'error',
-      message: 'Status check failed',
-      error: error.message
+      success: false,
+      error: error.message,
+      message: 'Failed to query places from database'
     });
   }
 });
@@ -210,34 +225,21 @@ app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
     message: 'API endpoint not found',
-    availableEndpoints: ['/places', '/routes', '/trips', '/chat'],
+    availableEndpoints: ['/places', '/routes', '/trips', '/chat', '/distance'],
     requestedEndpoint: req.originalUrl,
     suggestion: 'Check /api/docs for available endpoints'
   });
 });
 
-// Catch-all 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Resource not found',
-    path: req.originalUrl,
-    suggestion: 'This is an API server. Try /api/docs for documentation'
-  });
-});
-
-// Enhanced global error handler
+// Global error handler
 app.use((err, req, res, next) => {
   console.error('Global error handler:', {
     error: err.message,
     stack: err.stack,
     url: req.originalUrl,
-    method: req.method,
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
+    method: req.method
   });
 
-  // Handle specific error types
   if (err.name === 'ValidationError') {
     return res.status(400).json({
       success: false,
@@ -246,62 +248,10 @@ app.use((err, req, res, next) => {
     });
   }
 
-  if (err.name === 'CastError') {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid ID format',
-      field: err.path
-    });
-  }
-
-  if (err.code === 11000) {
-    return res.status(409).json({
-      success: false,
-      message: 'Duplicate entry detected',
-      field: Object.keys(err.keyPattern)[0]
-    });
-  }
-
-  if (err.name === 'JsonWebTokenError') {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid authentication token'
-    });
-  }
-
-  if (err.type === 'entity.too.large') {
-    return res.status(413).json({
-      success: false,
-      message: 'Request payload too large'
-    });
-  }
-
-  // CORS errors
-  if (err.message && err.message.includes('CORS')) {
-    return res.status(403).json({
-      success: false,
-      message: 'CORS policy violation',
-      origin: req.get('Origin')
-    });
-  }
-
-  // Default error response
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
   res.status(err.status || 500).json({
     success: false,
-    message: isDevelopment ? err.message : 'Internal server error',
-    ...(isDevelopment && { 
-      stack: err.stack,
-      details: err 
-    })
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
   });
-});
-
-// Graceful shutdown handler
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
-  process.exit(0);
 });
 
 // Start server
@@ -309,14 +259,10 @@ const server = app.listen(PORT, () => {
   console.log(`🚀 TourWithAI Backend running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-  console.log(`🤖 AI Trip Planning: Active`);
-  console.log(`⚡ Route Optimization: Active`);
-  console.log(`📊 Analytics: Active`);
   console.log(`📝 API Documentation: http://localhost:${PORT}/api/docs`);
-  console.log(`🔍 Health Check: http://localhost:${PORT}/health`);
+  console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);
+  console.log(`🧪 Test Endpoint: http://localhost:${PORT}/api/test/trips/optimize`);
 });
 
-// Set server timeout for long-running operations
-server.timeout = 120000; // 2 minutes for complex optimizations
-
+server.timeout = 120000;
 module.exports = app;

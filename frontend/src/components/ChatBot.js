@@ -27,22 +27,66 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
   const scrollToBottom = () => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, CHAT_CONFIG.AUTO_SCROLL_DELAY);
+    }, CHAT_CONFIG.AUTO_SCROLL_DELAY || 100);
   };
 
   const addMessage = (type, content, metadata = {}) => {
-    const newMessage = { id: Date.now() + Math.random(), type, content, timestamp: new Date(), ...metadata };
+    const newMessage = { 
+      id: Date.now() + Math.random(), 
+      type, 
+      content, 
+      timestamp: new Date(), 
+      ...metadata 
+    };
     setMessages(prev => [...prev, newMessage]);
     return newMessage;
+  };
+
+  // ✅ FIXED: Better response content extraction
+  const extractMessageContent = (responseData) => {
+    console.log('🔍 Extracting content from response:', responseData);
+    
+    // Handle different response structures
+    if (typeof responseData === 'string') {
+      return responseData;
+    }
+    
+    if (responseData?.message) {
+      return responseData.message;
+    }
+    
+    if (responseData?.suggestions) {
+      return responseData.suggestions;
+    }
+    
+    if (responseData?.information) {
+      return responseData.information;
+    }
+    
+    // If it's an object with other properties, try to find text content
+    if (typeof responseData === 'object') {
+      const textFields = ['text', 'content', 'response', 'answer'];
+      for (const field of textFields) {
+        if (responseData[field]) {
+          return responseData[field];
+        }
+      }
+    }
+    
+    console.warn('⚠️ Could not extract message content from:', responseData);
+    return 'Sorry, I received an empty response. Please try asking your question again.';
   };
 
   const handleSendMessage = async (message = inputMessage.trim(), mode = 'normal') => {
     if (!message && mode === 'normal') return;
     if (isLoading) return;
 
-    if (mode === 'normal') addMessage('user', message);
-    if (mode === 'suggestions') addMessage('user', 'Can you suggest me some places?');
-    if (mode === 'placeInfo' && selectedPlaces?.length > 0) {
+    // Add user message
+    if (mode === 'normal') {
+      addMessage('user', message);
+    } else if (mode === 'suggestions') {
+      addMessage('user', 'Can you suggest me some places?');
+    } else if (mode === 'placeInfo' && selectedPlaces?.length > 0) {
       addMessage('user', `Tell me about ${selectedPlaces[0].name}`);
     }
 
@@ -52,6 +96,7 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
 
     try {
       let response;
+
       if (mode === 'normal') {
         const context = {
           selectedPlaces: selectedPlaces?.map(p => p.name) || [],
@@ -61,8 +106,12 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
             hasRoute: !!optimizedRoute
           }
         };
+        
+        console.log('📤 Sending chat message:', message, 'with context:', context);
         response = await apiService.chatWithAI(message, context);
+        
       } else if (mode === 'suggestions') {
+        console.log('📤 Getting travel suggestions');
         response = await apiService.getTravelSuggestions({
           interests: [...new Set(selectedPlaces?.map(p => p.category) || [])],
           duration: 'full-day',
@@ -70,24 +119,40 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
           travelStyle: 'balanced',
           season: 'winter'
         });
+        
       } else if (mode === 'placeInfo' && selectedPlaces?.length > 0) {
-        response = await apiService.getPlaceInfo(selectedPlaces[0].id, `Tell me more about ${selectedPlaces[0].name}`);
+        console.log('📤 Getting place info for:', selectedPlaces[0].name);
+        response = await apiService.getPlaceInfo(
+          selectedPlaces[0].id, 
+          `Tell me more about ${selectedPlaces[0].name}`
+        );
       }
 
+      console.log('📥 Received response:', response);
       setIsTyping(false);
 
       if (response?.success) {
-        addMessage('bot', response.data, {
+        // ✅ FIXED: Extract content properly from response
+        const messageContent = extractMessageContent(response.data);
+        
+        addMessage('bot', messageContent, {
           responseTime: response.data?.responseTime,
           fallback: response.data?.fallback
         });
+        
       } else {
         throw new Error(response?.message || 'Failed to get response');
       }
+
     } catch (error) {
-      console.error('Chat error:', error);
+      console.error('💥 Chat error:', error);
       setIsTyping(false);
-      addMessage('bot', { message: CHAT_CONFIG.SYSTEM_MESSAGES.error }, { error: true });
+      
+      // Add error message
+      addMessage('bot', `Sorry, I encountered an error: ${error.message}. Please try again.`, { 
+        error: true 
+      });
+      
       toast.error('Failed to send message. Please try again.');
     } finally {
       setIsLoading(false);
@@ -98,7 +163,7 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
     setMessages([{
       id: Date.now(),
       type: 'bot',
-      content: { message: "Chat cleared! How can I help you?" },
+      content: "Chat cleared! How can I help you with your South India travel plans?",
       timestamp: new Date()
     }]);
     toast.success('Chat history cleared');
@@ -119,7 +184,11 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
         </div>
         
         <div className="chat-actions">
-          <button onClick={() => setIsMinimized(!isMinimized)} className="chat-action-btn" title={isMinimized ? 'Expand' : 'Minimize'}>
+          <button 
+            onClick={() => setIsMinimized(!isMinimized)} 
+            className="chat-action-btn" 
+            title={isMinimized ? 'Expand' : 'Minimize'}
+          >
             <Minimize2 size={16} />
           </button>
           <button onClick={clearChat} className="chat-action-btn" title="Clear Chat">
@@ -135,8 +204,14 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
         <>
           {selectedPlaces?.length > 0 && (
             <div className="chat-context">
-              <div className="context-item"><MapPin size={14} /> {selectedPlaces.length} places selected</div>
-              {optimizedRoute && optimizedRoute.length > 0 && (<div className="context-item"><Clock size={14} /> Route optimized</div>)}
+              <div className="context-item">
+                <MapPin size={14} /> {selectedPlaces.length} places selected
+              </div>
+              {optimizedRoute && optimizedRoute.length > 0 && (
+                <div className="context-item">
+                  <Clock size={14} /> Route optimized
+                </div>
+              )}
             </div>
           )}
 
@@ -148,18 +223,18 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
                 </div>
                 <div className="message-content">
                   <div className="message-bubble">
-                    {/* Render message content based on type */}
+                    {/* ✅ FIXED: Better message rendering */}
                     {message.type === 'user' ? (
                       <p>{message.content}</p>
                     ) : (
-                      <>
-                        <p>{message.content?.message || message.content?.suggestions || 'Error: Empty response'}</p>
+                      <div>
+                        <p>{typeof message.content === 'string' ? message.content : 'Loading...'}</p>
                         {message.fallback && (
                           <div className="fallback-notice">
                             ⚠️ Fallback response (AI temporarily unavailable)
                           </div>
                         )}
-                      </>
+                      </div>
                     )}
                   </div>
                   <div className="message-meta">
@@ -171,12 +246,15 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
                 </div>
               </div>
             ))}
+            
             {isTyping && (
               <div className="message bot typing">
                 <div className="message-avatar"><Bot size={18} /></div>
                 <div className="message-content">
                   <div className="message-bubble">
-                    <div className="typing-dots"><span></span><span></span><span></span></div>
+                    <div className="typing-dots">
+                      <span></span><span></span><span></span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -185,10 +263,16 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
           </div>
 
           <div className="quick-actions">
-            <button onClick={() => handleSendMessage('', 'suggestions')} disabled={isLoading}>
+            <button 
+              onClick={() => handleSendMessage('', 'suggestions')} 
+              disabled={isLoading}
+            >
               <Lightbulb size={14}/> Get Suggestions
             </button>
-            <button onClick={() => handleSendMessage('', 'placeInfo')} disabled={isLoading || !selectedPlaces?.length}>
+            <button 
+              onClick={() => handleSendMessage('', 'placeInfo')} 
+              disabled={isLoading || !selectedPlaces?.length}
+            >
               <Info size={14}/> Place Info
             </button>
           </div>
@@ -198,12 +282,26 @@ const ChatBot = ({ selectedPlaces, optimizedRoute, onClose }) => {
               <textarea
                 ref={inputRef}
                 value={inputMessage}
-                onChange={(e) => { if (e.target.value.length <= CHAT_CONFIG.MAX_MESSAGE_LENGTH) setInputMessage(e.target.value); }}
+                onChange={(e) => { 
+                  if (e.target.value.length <= (CHAT_CONFIG.MAX_MESSAGE_LENGTH || 500)) {
+                    setInputMessage(e.target.value); 
+                  }
+                }}
                 placeholder="Ask about places, routes, timings..."
                 rows={1}
                 disabled={isLoading}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
               />
-              <button onClick={() => handleSendMessage()} disabled={!inputMessage.trim() || isLoading} title="Send">
+              <button 
+                onClick={() => handleSendMessage()} 
+                disabled={!inputMessage.trim() || isLoading} 
+                title="Send"
+              >
                 <Send size={18} />
               </button>
             </div>

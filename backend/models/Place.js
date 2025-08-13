@@ -110,6 +110,12 @@ const placeSchema = new mongoose.Schema({
     required: true,
     min: 1,
     max: 5
+  },
+  // ADD THIS FIELD
+  isActive: {
+    type: Boolean,
+    default: true,
+    index: true
   }
 }, {
   timestamps: true
@@ -120,6 +126,7 @@ placeSchema.index({ city: 1, category: 1 });
 placeSchema.index({ state: 1, category: 1 });
 placeSchema.index({ rating: -1 });
 placeSchema.index({ 'location.latitude': 1, 'location.longitude': 1 });
+placeSchema.index({ isActive: 1, category: 1 }); // ADD THIS INDEX
 
 // Text index for search functionality
 placeSchema.index({

@@ -260,6 +260,7 @@ export const API_ENDPOINTS = {
   HEALTH: '/health'
 };
 
+
 // Error messages
 export const ERROR_MESSAGES = {
   NETWORK_ERROR: 'Network error. Please check your internet connection.',
