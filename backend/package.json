@@ -1,7 +1,7 @@
 {
   "name": "tourwithai-backend",
   "version": "1.0.0",
-  "description": "AI-powered South India travel planner backend",
+  "description": "AI-powered South India travel planner backend with Leaflet.js mapping",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -17,7 +17,10 @@
     "express-rate-limit": "^6.11.2",
     "express-validator": "^7.2.1",
     "helmet": "^7.2.0",
-    "mongoose": "^7.8.7"
+    "leaflet": "^1.9.4",
+    "mongoose": "^7.8.7",
+    "react-hot-toast": "^2.5.2",
+    "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
@@ -26,8 +29,13 @@
     "travel",
     "ai",
     "south-india",
-    "route-optimization"
+    "route-optimization",
+    "leaflet",
+    "openstreetmap"
   ],
   "author": "TourWithAI Team",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  }
 }

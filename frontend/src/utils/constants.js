@@ -1,369 +1,348 @@
-// App configuration constants
-export const CONSTANTS = {
-  APP_NAME: process.env.REACT_APP_APP_NAME || 'TourWithAI',
-  APP_VERSION: process.env.REACT_APP_APP_VERSION || '1.0.0',
-  APP_TAGLINE: process.env.REACT_APP_TAGLINE || 'Your Smartest Travel Buddy Through South India',
-  
-  // API Configuration
-  API_BASE_URL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api',
-  Maps_API_KEY: process.env.REACT_APP_Maps_API_KEY,
-  
-  // Map Configuration
-  DEFAULT_MAP_CENTER: {
-    lat: parseFloat(process.env.REACT_APP_DEFAULT_MAP_CENTER_LAT) || 11.1271,
-    lng: parseFloat(process.env.REACT_APP_DEFAULT_MAP_CENTER_LNG) || 78.6569
-  },
-  DEFAULT_MAP_ZOOM: parseInt(process.env.REACT_APP_DEFAULT_MAP_ZOOM) || 7,
-  
-  // Feature Toggles
-  FEATURES: {
-    CHAT_ENABLED: process.env.REACT_APP_ENABLE_CHAT !== 'false',
-    ROUTE_OPTIMIZATION: process.env.REACT_APP_ENABLE_ROUTE_OPTIMIZATION !== 'false',
-    ANALYTICS_ENABLED: process.env.REACT_APP_ENABLE_ANALYTICS === 'true'
-  }
+// Application Constants for TourWithAI
+
+// Storage Keys
+export const STORAGE_KEYS = {
+  VISITED_PLACES: 'tourwithai_visited_places',
+  ROUTE_SETTINGS: 'tourwithai_route_settings',
+  USER_PREFERENCES: 'tourwithai_user_preferences',
+  CHAT_HISTORY: 'tourwithai_chat_history',
+  RECENT_SEARCHES: 'tourwithai_recent_searches',
+  SAVED_ROUTES: 'tourwithai_saved_routes'
 };
 
-// Place categories with metadata
+// Route Settings Defaults
+export const ROUTE_SETTINGS = {
+  DEFAULT_START_TIME: '09:00',
+  DEFAULT_END_TIME: '18:00',
+  DEFAULT_DURATION: 480, // 8 hours in minutes
+  MIN_DURATION: 120, // 2 hours
+  MAX_DURATION: 1440, // 24 hours
+  DEFAULT_OPTIMIZATION_LEVEL: 'balanced',
+  DEFAULT_TRANSPORT_MODE: 'car'
+};
+
+// Place Categories
 export const PLACE_CATEGORIES = {
-  temple: {
-    label: 'Temples',
-    icon: '🛕',
-    color: '#f59e0b',
+  TEMPLE: 'temple',
+  PALACE: 'palace',
+  HILL_STATION: 'hill-station',
+  HERITAGE: 'heritage',
+  BEACH: 'beach',
+  WILDLIFE: 'wildlife',
+  NATURE: 'nature',
+  FORT: 'fort',
+  MUSEUM: 'museum',
+  PARK: 'park'
+};
+
+// Category Display Names and Icons
+export const CATEGORY_CONFIG = {
+  [PLACE_CATEGORIES.TEMPLE]: {
+    name: 'Temples',
+    icon: '🕉️',
+    color: '#dc2626',
     description: 'Sacred temples and religious sites'
   },
-  palace: {
-    label: 'Palaces',
+  [PLACE_CATEGORIES.PALACE]: {
+    name: 'Palaces',
     icon: '🏰',
-    color: '#8b5cf6',
-    description: 'Royal palaces and heritage buildings'
+    color: '#fbbf24',
+    description: 'Royal palaces and historic buildings'
   },
-  'hill-station': {
-    label: 'Hill Stations',
+  [PLACE_CATEGORIES.HILL_STATION]: {
+    name: 'Hill Stations',
     icon: '⛰️',
-    color: '#10b981',
+    color: '#059669',
     description: 'Scenic hill stations and mountain retreats'
   },
-  beach: {
-    label: 'Beaches',
+  [PLACE_CATEGORIES.HERITAGE]: {
+    name: 'Heritage Sites',
+    icon: '🏛️',
+    color: '#92400e',
+    description: 'UNESCO sites and historical monuments'
+  },
+  [PLACE_CATEGORIES.BEACH]: {
+    name: 'Beaches',
     icon: '🏖️',
-    color: '#06b6d4',
+    color: '#2563eb',
     description: 'Beautiful beaches and coastal areas'
   },
-  fort: {
-    label: 'Forts',
-    icon: '🏛️',
-    color: '#ef4444',
-    description: 'Historic forts and defensive structures'
-  },
-  heritage: {
-    label: 'Heritage Sites',
-    icon: '🏛️',
-    color: '#f97316',
-    description: 'UNESCO sites and heritage monuments'
-  },
-  nature: {
-    label: 'Nature',
-    icon: '🌿',
-    color: '#22c55e',
-    description: 'Natural attractions and scenic spots'
-  },
-  wildlife: {
-    label: 'Wildlife',
-    icon: '🦁',
-    color: '#84cc16',
+  [PLACE_CATEGORIES.WILDLIFE]: {
+    name: 'Wildlife',
+    icon: '🦎',
+    color: '#15803d',
     description: 'Wildlife sanctuaries and national parks'
   },
-  museum: {
-    label: 'Museums',
+  [PLACE_CATEGORIES.NATURE]: {
+    name: 'Nature Spots',
+    icon: '🌿',
+    color: '#16a34a',
+    description: 'Gardens, waterfalls, and natural attractions'
+  },
+  [PLACE_CATEGORIES.FORT]: {
+    name: 'Forts',
+    icon: '🏯',
+    color: '#6b7280',
+    description: 'Historic forts and military structures'
+  },
+  [PLACE_CATEGORIES.MUSEUM]: {
+    name: 'Museums',
     icon: '🏛️',
-    color: '#6366f1',
+    color: '#7c3aed',
     description: 'Museums and cultural centers'
+  },
+  [PLACE_CATEGORIES.PARK]: {
+    name: 'Parks',
+    icon: '🌳',
+    color: '#16a34a',
+    description: 'City parks and recreational areas'
   }
 };
 
-// States covered by the app
-export const SOUTH_INDIAN_STATES = {
-  'Tamil Nadu': {
-    code: 'TN',
-    capital: 'Chennai',
-    color: '#e11d48'
+// South Indian States
+export const SOUTH_INDIAN_STATES = [
+  { code: 'TN', name: 'Tamil Nadu' },
+  { code: 'KL', name: 'Kerala' },
+  { code: 'KA', name: 'Karnataka' },
+  { code: 'AP', name: 'Andhra Pradesh' },
+  { code: 'TS', name: 'Telangana' },
+  { code: 'PY', name: 'Puducherry' }
+];
+
+// Major South Indian Cities
+export const MAJOR_CITIES = [
+  'Chennai', 'Bangalore', 'Hyderabad', 'Kochi', 'Coimbatore',
+  'Madurai', 'Mysore', 'Thiruvananthapuram', 'Visakhapatnam', 'Mangalore',
+  'Salem', 'Tiruchirappalli', 'Warangal', 'Guntur', 'Pondicherry'
+];
+
+// Optimization Algorithms
+export const ALGORITHMS = {
+  FAST: {
+    id: 'fast',
+    name: 'Fast (Greedy)',
+    description: 'Quick optimization using greedy algorithm',
+    timeComplexity: 'O(n²)',
+    recommended: true,
+    maxPlaces: 15
   },
-  'Kerala': {
-    code: 'KL',
-    capital: 'Thiruvananthapuram',
-    color: '#059669'
+  BALANCED: {
+    id: 'balanced',
+    name: 'Balanced (Genetic/ACO)',
+    description: 'Best balance of speed and quality',
+    timeComplexity: 'O(g×p×n)',
+    recommended: true,
+    maxPlaces: 20
   },
-  'Karnataka': {
-    code: 'KA',
-    capital: 'Bengaluru',
-    color: '#dc2626'
-  },
-  'Telangana': {
-    code: 'TG',
-    capital: 'Hyderabad',
-    color: '#7c3aed'
-  },
-  'Andhra Pradesh': {
-    code: 'AP',
-    capital: 'Amaravati',
-    color: '#0891b2'
+  OPTIMAL: {
+    id: 'optimal',
+    name: 'Optimal (Multi-Algorithm)',
+    description: 'Best possible route with multiple algorithms',
+    timeComplexity: 'O(n!)',
+    recommended: false,
+    maxPlaces: 12
   }
 };
 
-// Route optimization settings
-export const ROUTE_SETTINGS = {
-  TIME_OPTIONS: [
-    { value: 240, label: '4 hours' },
-    { value: 360, label: '6 hours' },
-    { value: 480, label: '8 hours' },
-    { value: 600, label: '10 hours' },
-    { value: 720, label: '12 hours' },
-    { value: 1440, label: 'Full day (24h)' },
-    { value: 2880, label: '2 days' }
-  ],
-  
-  OPTIMIZATION_LEVELS: {
-    fast: {
-      label: 'Fast (Greedy)',
-      description: 'Quick optimization using nearest neighbor algorithm'
-    },
-    optimal: {
-      label: 'Optimal (DP)',
-      description: 'Best possible route using dynamic programming (slower)'
-    }
-  },
-  
-  DEFAULT_START_TIME: '09:00',
-  DEFAULT_DURATION: 480, // 8 hours
-  MAX_PLACES_FOR_OPTIMIZATION: 15,
-  MAX_PLACES_FOR_OPTIMAL: 10
+// Optimization Preferences
+export const OPTIMIZATION_TARGETS = {
+  BALANCED: 'balanced',
+  TIME: 'time',
+  DISTANCE: 'distance',
+  RATING: 'rating',
+  COST: 'cost'
 };
 
-// Map styles and configuration
+export const OPTIMIZATION_TARGET_CONFIG = {
+  [OPTIMIZATION_TARGETS.BALANCED]: {
+    name: 'Balanced Experience',
+    description: 'Best overall travel experience',
+    icon: '⚖️'
+  },
+  [OPTIMIZATION_TARGETS.TIME]: {
+    name: 'Minimize Travel Time',
+    description: 'Shortest total travel time',
+    icon: '⏱️'
+  },
+  [OPTIMIZATION_TARGETS.DISTANCE]: {
+    name: 'Minimize Distance',
+    description: 'Shortest total distance',
+    icon: '📏'
+  },
+  [OPTIMIZATION_TARGETS.RATING]: {
+    name: 'Maximize Ratings',
+    description: 'Visit highest-rated places',
+    icon: '⭐'
+  },
+  [OPTIMIZATION_TARGETS.COST]: {
+    name: 'Minimize Costs',
+    description: 'Most budget-friendly route',
+    icon: '💰'
+  }
+};
+
+// Map Configuration
 export const MAP_CONFIG = {
-  STYLES: {
-    default: [],
-    dark: [
-      { elementType: 'geometry', stylers: [{ color: '#212121' }] },
-      { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-      { elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-      { elementType: 'labels.text.stroke', stylers: [{ color: '#212121' }] }
-    ],
-    light: [
-      { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
-      { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-      { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] }
-    ]
+  DEFAULT_CENTER: [12.9716, 77.5946], // Bangalore
+  DEFAULT_ZOOM: 7,
+  MIN_ZOOM: 5,
+  MAX_ZOOM: 18,
+  TILE_LAYER: {
+    OSM: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    ATTRIBUTION: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   },
-  
   MARKER_COLORS: {
-    unselected: '#6b7280',
-    selected: '#3b82f6',
-    visited: '#10b981',
-    current: '#f59e0b',
-    route: '#ef4444'
-  },
-  
-  CLUSTER_OPTIONS: {
-    imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m',
-    gridSize: 60,
-    maxZoom: 12,
-    minimumClusterSize: 3
+    DEFAULT: '#3b82f6',
+    SELECTED: '#10b981',
+    VISITED: '#059669',
+    ROUTE: '#ef4444'
   }
 };
 
-// UI Constants
-export const UI_CONFIG = {
-  SIDEBAR_WIDTH: 400,
-  CHAT_WIDTH: 350,
-  HEADER_HEIGHT: 80,
-  FOOTER_HEIGHT: 120,
-  
-  BREAKPOINTS: {
-    mobile: 768,
-    tablet: 1024,
-    desktop: 1200
-  },
-  
-  ANIMATIONS: {
-    DURATION: {
-      fast: 200,
-      normal: 300,
-      slow: 500
-    },
-    EASING: {
-      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
-      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
-      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)'
-    }
-  }
-};
-
-// Chat configuration
+// Chat Configuration
 export const CHAT_CONFIG = {
-  MAX_MESSAGE_LENGTH: 500,
-  TYPING_INDICATOR_DELAY: 1000,
-  AUTO_SCROLL_DELAY: 100,
-  
-  QUICK_REPLIES: [
-    '🕐 What are the opening hours?',
-    '💰 How much does it cost?',
-    '🚗 How do I get there?',
-    '⭐ What are the top attractions?',
-    '🍽️ Where can I eat nearby?',
-    '🏨 Accommodation options?'
-  ],
-  
-  SYSTEM_MESSAGES: {
-    welcome: "Hello! I'm your AI travel assistant for South India. Ask me anything about places, routes, timings, or travel tips!",
-    error: "I apologize, but I'm having trouble processing your request. Please try again.",
-    offline: "You're currently offline. I'll respond once your connection is restored."
-  }
+  MAX_MESSAGE_LENGTH: 1000,
+  MAX_HISTORY: 50,
+  TYPING_DELAY: 1000,
+  WELCOME_MESSAGES: [
+    "Hello! I'm your South Indian travel guide. How can I help you plan your trip?",
+    "Namaste! Ready to explore the beautiful places of South India? Ask me anything!",
+    "Welcome to South India's AI travel assistant! What would you like to discover?"
+  ]
 };
 
-// Local storage keys
-export const STORAGE_KEYS = {
-  SELECTED_PLACES: 'tourwithai_selected_places',
-  ROUTE_SETTINGS: 'tourwithai_route_settings',
-  CHAT_HISTORY: 'tourwithai_chat_history',
-  USER_PREFERENCES: 'tourwithai_user_preferences',
-  VISITED_PLACES: 'tourwithai_visited_places',
-  APP_THEME: 'tourwithai_theme'
-};
-
-// API endpoints
+// API Endpoints
 export const API_ENDPOINTS = {
-  PLACES: {
-    GET_ALL: '/places',
-    GET_BY_ID: (id) => `/places/${id}`,
-    GET_STATS: '/places/stats',
-  },
-  TRIPS: {
-    GENERATE: '/trips/generate',
-    OPTIMIZE: '/trips/optimize',
-    SUGGESTIONS: '/trips/suggestions',
-    MATRIX: '/trips/matrix',
-    TEMPLATES: '/trips/templates',
-    HISTORY: '/trips',
-  },
-  ROUTES: {
-    OPTIMIZE: '/routes/optimize',
-    SUGGESTIONS: '/routes/suggestions',
-    DISTANCE: (from, to) => `/routes/distance/${from}/${to}`,
-    MATRIX: '/routes/matrix'
-  },
-  CHAT: {
-    MESSAGE: '/chat',
-    SUGGESTIONS: '/chat/suggestions',
-    PLACE_INFO: '/chat/place-info'
-  },
-  HEALTH: '/health'
+  HEALTH: '/health',
+  PLACES: '/places',
+  ROUTES: '/routes',
+  TRIPS: '/trips',
+  CHAT: '/chat',
+  MAP: '/map',
+  DISTANCE: '/distance'
 };
 
-
-// Error messages
+// Error Messages
 export const ERROR_MESSAGES = {
-  NETWORK_ERROR: 'Network error. Please check your internet connection.',
-  SERVER_ERROR: 'Server error. Please try again later.',
-  VALIDATION_ERROR: 'Please check your input and try again.',
-  NOT_FOUND: 'The requested resource was not found.',
-  RATE_LIMITED: 'Too many requests. Please try again later.',
-  Maps_ERROR: 'Error loading Google Maps. Please check your API key.',
-  GEOLOCATION_ERROR: 'Unable to access your location. Please enable location services.',
-  GENERIC_ERROR: 'An unexpected error occurred. Please try again.'
+  NETWORK_ERROR: 'Network connection failed. Please check your internet connection.',
+  SERVER_ERROR: 'Server is temporarily unavailable. Please try again later.',
+  TIMEOUT_ERROR: 'Request timed out. Please try again.',
+  INVALID_DATA: 'Invalid data provided. Please check your inputs.',
+  NO_PLACES_FOUND: 'No places found matching your criteria.',
+  OPTIMIZATION_FAILED: 'Route optimization failed. Please try with fewer places.',
+  LOCATION_ERROR: 'Unable to get your location. Please enable location services.',
+  GENERIC_ERROR: 'Something went wrong. Please try again.'
 };
 
-// Success messages
+// Success Messages
 export const SUCCESS_MESSAGES = {
   ROUTE_OPTIMIZED: 'Route optimized successfully!',
-  PLACE_ADDED: 'Place added to your selection.',
-  PLACE_REMOVED: 'Place removed from your selection.',
-  PLACE_VISITED: 'Place marked as visited.',
-  SETTINGS_SAVED: 'Settings saved successfully.',
-  DATA_LOADED: 'Data loaded successfully.'
+  PLACE_ADDED: 'Place added to your trip!',
+  PLACE_REMOVED: 'Place removed from your trip!',
+  SETTINGS_SAVED: 'Settings saved successfully!',
+  DATA_LOADED: 'Data loaded successfully!'
 };
 
-// Validation rules
+// Feature Flags
+export const FEATURES = {
+  AI_CHAT: true,
+  MAP_VIEW: true,
+  GRAPH_VISUALIZATION: true,
+  OFFLINE_MODE: false,
+  LOCATION_TRACKING: true,
+  SOCIAL_SHARING: false,
+  TRIP_EXPORT: true,
+  COLLABORATIVE_PLANNING: false
+};
+
+// Time Formats
+export const TIME_FORMATS = {
+  DISPLAY: 'HH:mm',
+  STORAGE: 'HH:mm',
+  API: 'HH:mm'
+};
+
+// Distance Units
+export const DISTANCE_UNITS = {
+  KM: 'km',
+  MILES: 'miles'
+};
+
+// Duration Formats
+export const DURATION_FORMATS = {
+  MINUTES: 'minutes',
+  HOURS: 'hours',
+  DAYS: 'days'
+};
+
+// Validation Rules
 export const VALIDATION = {
-  MIN_PLACES_FOR_ROUTE: 2,
-  MAX_PLACES_FOR_ROUTE: 15,
+  MIN_PLACES: 2,
+  MAX_PLACES: 20,
   MIN_TIME_AVAILABLE: 120, // 2 hours
-  MAX_TIME_AVAILABLE: 4320, // 3 days
-  
-  PLACE_NAME_MAX_LENGTH: 100,
-  DESCRIPTION_MAX_LENGTH: 500,
-  
-  COORDINATE_BOUNDS: {
-    SOUTH_INDIA: {
-      north: 20.0,
-      south: 8.0,
-      east: 84.0,
-      west: 68.0
-    }
-  }
+  MAX_TIME_AVAILABLE: 1440, // 24 hours
+  MIN_RATING: 0,
+  MAX_RATING: 5,
+  MAX_SEARCH_RESULTS: 100
 };
 
-// Export utility functions
-export const UTILS = {
-  // Format duration from minutes to human readable
-  formatDuration: (minutes) => {
-    if (minutes < 0) return '0m';
-    if (minutes < 60) return `${Math.round(minutes)}m`;
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
-    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+// Default User Preferences
+export const DEFAULT_PREFERENCES = {
+  language: 'en',
+  units: 'metric',
+  theme: 'light',
+  notifications: true,
+  autoSave: true,
+  showTutorials: true,
+  mapStyle: 'osm',
+  defaultView: 'list'
+};
+
+// Tutorial Steps
+export const TUTORIAL_STEPS = [
+  {
+    target: '.place-selector',
+    content: 'Select places you want to visit by clicking on them.',
+    placement: 'right'
   },
-  
-  // Format distance
-  formatDistance: (km) => {
-    if (km < 0) return '0m';
-    if (km < 1) return `${Math.round(km * 1000)}m`;
-    return `${km.toFixed(1)}km`;
+  {
+    target: '.optimize-button',
+    content: 'Click here to optimize your route using AI algorithms.',
+    placement: 'top'
   },
-  
-  // Generate random color
-  getRandomColor: () => {
-    const colors = Object.values(PLACE_CATEGORIES).map(cat => cat.color);
-    return colors[Math.floor(Math.random() * colors.length)];
+  {
+    target: '.algorithm-settings',
+    content: 'Adjust algorithm settings for better optimization.',
+    placement: 'left'
   },
-  
-  // Check if mobile device
-  isMobile: () => {
-    return window.innerWidth <= 768; // Using a fixed value for simplicity
-  },
-  
-  // Debounce function
-  debounce: (func, wait) => {
-    let timeout;
-    return function executedFunction(...args) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      };
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-    };
-  },
-  
-  // Throttle function
-  throttle: (func, limit) => {
-    let inThrottle;
-    return function() {
-      const args = arguments;
-      const context = this;
-      if (!inThrottle) {
-        func.apply(context, args);
-        inThrottle = true;
-        setTimeout(() => inThrottle = false, limit);
-      }
-    };
-  },
-  timeToMinutes: (timeStr) => {
-    try {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      return hours * 60 + minutes;
-    } catch {
-      return 0;
-    }
+  {
+    target: '.route-visualization',
+    content: 'View your optimized route on the interactive graph.',
+    placement: 'bottom'
   }
+];
+
+// Export all constants as default
+export default {
+  STORAGE_KEYS,
+  ROUTE_SETTINGS,
+  PLACE_CATEGORIES,
+  CATEGORY_CONFIG,
+  SOUTH_INDIAN_STATES,
+  MAJOR_CITIES,
+  ALGORITHMS,
+  OPTIMIZATION_TARGETS,
+  OPTIMIZATION_TARGET_CONFIG,
+  MAP_CONFIG,
+  CHAT_CONFIG,
+  API_ENDPOINTS,
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+  FEATURES,
+  TIME_FORMATS,
+  DISTANCE_UNITS,
+  DURATION_FORMATS,
+  VALIDATION,
+  DEFAULT_PREFERENCES,
+  TUTORIAL_STEPS
 };

@@ -1,4 +1,4 @@
-// Update your server.js - Fix rate limiting configuration
+// Updated server.js - Add map routes
 
 const express = require('express');
 const cors = require('cors');
@@ -14,6 +14,7 @@ const routeRoutes = require('./routes/routes');
 const chatRoutes = require('./routes/chat');
 const tripRoutes = require('./routes/trips');
 const distanceRoutes = require('./routes/distance');
+const mapRoutes = require('./routes/map'); // ADD THIS LINE
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -67,10 +68,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Apply general rate limiting to all API routes (but allow more requests)
+// Apply general rate limiting to all API routes
 app.use('/api/', rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200, // Increased from 100
+  max: 200,
   message: {
     error: 'Too many requests from this IP, please try again later.',
     retryAfter: '15 minutes'
@@ -103,6 +104,12 @@ app.get('/api/health', async (req, res) => {
       success: true,
       database: dbStatus === 1 ? 'connected' : 'disconnected',
       placesInDatabase: placeCount,
+      features: {
+        leafletMaps: true,
+        openStreetMap: true,
+        freeMapping: true,
+        noApiKeysRequired: true
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -120,14 +127,21 @@ app.use('/api/routes', routeRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/distance', distanceRoutes);
+app.use('/api/map', mapRoutes); // ADD THIS LINE
 
 // API documentation endpoint
 app.get('/api/docs', (req, res) => {
   res.status(200).json({
     title: 'TourWithAI Backend API Documentation',
-    version: '2.0.0',
-    description: 'AI-powered travel planning and route optimization API',
+    version: '2.1.0',
+    description: 'AI-powered travel planning with Leaflet.js + OpenStreetMap integration',
     baseUrl: `${req.protocol}://${req.get('host')}/api`,
+    mappingTechnology: {
+      frontend: 'Leaflet.js',
+      tiles: 'OpenStreetMap',
+      cost: 'Free',
+      features: ['No API keys required', 'Unlimited requests', 'Open source']
+    },
     endpoints: {
       places: {
         base: '/places',
@@ -137,6 +151,21 @@ app.get('/api/docs', (req, res) => {
           'GET /places - Get all places with filters',
           'GET /places/category/temple - Get temples',
           'GET /places/nearby?latitude=12.9716&longitude=77.5946 - Get nearby places'
+        ]
+      },
+      map: {
+        base: '/map',
+        description: 'Leaflet.js + OpenStreetMap integration endpoints',
+        methods: ['GET', 'POST'],
+        examples: [
+          'GET /map/bounds - Get map bounds for places',
+          'GET /map/places-in-bounds - Get places in viewport',
+          'POST /map/optimize-route - Get optimized route coordinates',
+          'GET /map/clustered-markers - Get clustered markers',
+          'GET /map/heatmap-data - Get heatmap data',
+          'GET /map/geocode?q=Bangalore - Geocode address',
+          'GET /map/reverse-geocode?lat=12.9716&lng=77.5946 - Reverse geocode',
+          'GET /map/config - Get map configuration'
         ]
       },
       trips: {
@@ -182,12 +211,24 @@ app.get('/api/docs', (req, res) => {
   });
 });
 
-// Test endpoint to verify trip optimization is working
-app.get('/api/test/trips/optimize', async (req, res) => {
+// Test endpoint for Leaflet integration
+app.get('/api/test/leaflet', (req, res) => {
   res.json({
     success: true,
-    message: 'Trip optimization endpoint is accessible',
-    method: 'This is a GET test endpoint. Use POST /api/trips/optimize for actual optimization.',
+    message: 'Leaflet.js + OpenStreetMap integration ready!',
+    features: {
+      mapping: 'Leaflet.js',
+      tiles: 'OpenStreetMap',
+      geocoding: 'Nominatim (OSM)',
+      routing: 'OSRM',
+      cost: 'Free',
+      apiKeysRequired: false
+    },
+    testEndpoints: [
+      'GET /api/map/bounds',
+      'GET /api/map/config',
+      'GET /api/map/geocode?q=Bangalore'
+    ],
     timestamp: new Date().toISOString()
   });
 });
@@ -207,9 +248,14 @@ app.get('/api/debug/places', async (req, res) => {
         name: place.name,
         city: place.city,
         state: place.state,
-        category: place.category
+        category: place.category,
+        coordinates: {
+          latitude: place.location?.latitude,
+          longitude: place.location?.longitude
+        }
       })),
-      message: `Found ${count} places in database`
+      message: `Found ${count} places in database`,
+      leafletReady: true
     });
   } catch (error) {
     res.status(500).json({
@@ -225,7 +271,7 @@ app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
     message: 'API endpoint not found',
-    availableEndpoints: ['/places', '/routes', '/trips', '/chat', '/distance'],
+    availableEndpoints: ['/places', '/routes', '/trips', '/chat', '/distance', '/map'],
     requestedEndpoint: req.originalUrl,
     suggestion: 'Check /api/docs for available endpoints'
   });
@@ -259,9 +305,11 @@ const server = app.listen(PORT, () => {
   console.log(`🚀 TourWithAI Backend running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  console.log(`🗺️  Leaflet.js + OpenStreetMap: ENABLED`);
   console.log(`📝 API Documentation: http://localhost:${PORT}/api/docs`);
   console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);
-  console.log(`🧪 Test Endpoint: http://localhost:${PORT}/api/test/trips/optimize`);
+  console.log(`🧪 Leaflet Test: http://localhost:${PORT}/api/test/leaflet`);
+  console.log(`🌍 Map API: http://localhost:${PORT}/api/map/*`);
 });
 
 server.timeout = 120000;

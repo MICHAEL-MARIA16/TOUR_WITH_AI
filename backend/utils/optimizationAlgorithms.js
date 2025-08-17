@@ -10,9 +10,9 @@ class OptimizationAlgorithms {
 
   /**
    * Advanced Greedy Algorithm with Multiple Criteria
-   * Selects best place at each step considering multiple factors
+   * Fixed to work with your Place schema structure
    */
-  async advancedGreedyOptimization(places, constraints) {
+  async advancedGreedyOptimization(places, constraints = {}) {
     const {
       startLocation,
       timeConstraints = { maxDuration: 480 },
@@ -27,21 +27,53 @@ class OptimizationAlgorithms {
       }
     } = constraints;
 
+    console.log(`🧠 Advanced Greedy: Processing ${places.length} places`);
+
     if (places.length === 0) {
-      return { route: [], totalTime: 0, totalDistance: 0, efficiency: 0 };
+      return { 
+        route: [], 
+        totalTime: 0, 
+        totalDistance: 0, 
+        totalCost: 0,
+        efficiency: 0,
+        algorithm: 'advanced-greedy'
+      };
+    }
+
+    // Validate places have required data
+    const validPlaces = places.filter(place => {
+      return place.location && 
+             typeof place.location.latitude === 'number' && 
+             typeof place.location.longitude === 'number' &&
+             place.averageVisitDuration &&
+             place.averageVisitDuration > 0;
+    });
+
+    console.log(`✅ Valid places for optimization: ${validPlaces.length}/${places.length}`);
+
+    if (validPlaces.length === 0) {
+      console.log('❌ No valid places found for optimization');
+      return { 
+        route: [], 
+        totalTime: 0, 
+        totalDistance: 0, 
+        totalCost: 0,
+        efficiency: 0,
+        algorithm: 'advanced-greedy',
+        error: 'No valid places with required data'
+      };
     }
 
     const selectedPlaces = [];
-    const remainingPlaces = [...places];
+    const remainingPlaces = [...validPlaces];
     let totalTime = 0;
     let totalCost = 0;
     let totalDistance = 0;
     let currentLocation = startLocation;
 
-    // Pre-calculate all pairwise distances for efficiency
-    const distanceMatrix = await this.buildDistanceMatrix(places, startLocation);
+    console.log('🔄 Starting greedy selection process...');
 
-    while (selectedPlaces.length < places.length && remainingPlaces.length > 0) {
+    while (selectedPlaces.length < validPlaces.length && remainingPlaces.length > 0) {
       let bestPlace = null;
       let bestScore = -Infinity;
       let bestIndex = -1;
@@ -49,34 +81,44 @@ class OptimizationAlgorithms {
       for (let i = 0; i < remainingPlaces.length; i++) {
         const candidate = remainingPlaces[i];
         
-        // Check hard constraints first
-        const constraintCheck = await this.checkConstraints(
-          candidate, 
-          totalTime, 
-          totalCost, 
-          constraints
-        );
-        
-        if (!constraintCheck.feasible) continue;
+        try {
+          // Check hard constraints first
+          const constraintCheck = this.checkConstraints(
+            candidate, 
+            totalTime, 
+            totalCost, 
+            constraints
+          );
+          
+          if (!constraintCheck.feasible) continue;
 
-        // Calculate multi-criteria score
-        const scores = await this.calculateMultiCriteriaScore(
-          candidate,
-          currentLocation,
-          selectedPlaces,
-          constraints,
-          distanceMatrix,
-          weights
-        );
+          // Calculate multi-criteria score
+          const scores = await this.calculateMultiCriteriaScore(
+            candidate,
+            currentLocation,
+            selectedPlaces,
+            constraints,
+            null, // distanceMatrix not needed for greedy
+            weights
+          );
 
-        if (scores.totalScore > bestScore) {
-          bestScore = scores.totalScore;
-          bestPlace = candidate;
-          bestIndex = i;
+          if (scores.totalScore > bestScore) {
+            bestScore = scores.totalScore;
+            bestPlace = candidate;
+            bestIndex = i;
+          }
+        } catch (error) {
+          console.error(`Error evaluating candidate ${candidate.name}:`, error.message);
+          continue;
         }
       }
 
-      if (!bestPlace) break; // No feasible place found
+      if (!bestPlace) {
+        console.log('🛑 No more feasible places found');
+        break;
+      }
+
+      console.log(`✅ Selected: ${bestPlace.name} (Score: ${bestScore.toFixed(3)})`);
 
       // Add best place to route
       selectedPlaces.push(bestPlace);
@@ -84,17 +126,26 @@ class OptimizationAlgorithms {
 
       // Update totals
       totalTime += bestPlace.averageVisitDuration;
-      totalCost += bestPlace.entryFee?.indian || 0;
+      totalCost += this.getPlaceEntryCost(bestPlace);
       
       if (currentLocation) {
-        const travelDistance = await this.getTravelDistance(currentLocation, bestPlace.location);
-        const travelTime = await this.getTravelTime(currentLocation, bestPlace.location);
-        totalDistance += travelDistance;
-        totalTime += travelTime;
+        try {
+          const travelData = await this.getTravelData(currentLocation, bestPlace.location);
+          totalDistance += travelData.distance;
+          totalTime += travelData.travelTime;
+        } catch (error) {
+          console.warn(`Warning: Could not calculate travel data: ${error.message}`);
+          // Use fallback estimation
+          const fallbackDistance = this.calculateStraightLineDistance(currentLocation, bestPlace.location);
+          totalDistance += fallbackDistance;
+          totalTime += fallbackDistance * 2; // Assume 30 km/h average speed
+        }
       }
 
       currentLocation = bestPlace.location;
     }
+
+    console.log(`🎯 Optimization complete: ${selectedPlaces.length} places selected`);
 
     return {
       route: selectedPlaces,
@@ -103,388 +154,214 @@ class OptimizationAlgorithms {
       totalCost,
       efficiency: this.calculateEfficiency(selectedPlaces, totalTime),
       algorithm: 'advanced-greedy',
-      constraintsSatisfied: this.validateFinalRoute(selectedPlaces, constraints)
+      constraintsSatisfied: this.validateFinalRoute(selectedPlaces, constraints),
+      placesProcessed: places.length,
+      placesSelected: selectedPlaces.length
     };
   }
 
   /**
-   * Genetic Algorithm for larger problem sets
-   * Uses evolutionary approach to find optimal solutions
+   * Enhanced Genetic Algorithm adapted for your data structure
    */
-  async geneticAlgorithmOptimization(places, constraints) {
+  async geneticAlgorithmOptimization(places, constraints = {}) {
     const {
-      populationSize = 50,
-      generations = 100,
-      mutationRate = 0.1,
+      populationSize = 30,
+      generations = 50,
+      mutationRate = 0.15,
       crossoverRate = 0.8,
-      eliteSize = 10
+      eliteSize = 5
     } = constraints.geneticParams || {};
 
+    console.log(`🧬 Genetic Algorithm: ${places.length} places, ${generations} generations`);
+
+    // For small problems, use greedy
     if (places.length < 4) {
-      // Fall back to greedy for small problems
+      console.log('🔄 Falling back to greedy for small problem');
       return this.advancedGreedyOptimization(places, constraints);
     }
 
-    // Initialize population
-    let population = await this.initializePopulation(places, populationSize, constraints);
-    
+    // Validate places
+    const validPlaces = this.validatePlacesForOptimization(places);
+    if (validPlaces.length < 2) {
+      console.log('❌ Insufficient valid places for genetic algorithm');
+      return this.advancedGreedyOptimization(places, constraints);
+    }
+
+    // Initialize population with better seeds
+    let population = await this.initializePopulation(validPlaces, populationSize, constraints);
+    let bestOverallFitness = -Infinity;
+    let stagnationCounter = 0;
+
     for (let generation = 0; generation < generations; generation++) {
-      // Evaluate fitness for each individual
-      const fitnessScores = await Promise.all(
-        population.map(individual => this.evaluateFitness(individual, constraints))
-      );
+      try {
+        // Evaluate fitness for each individual
+        const fitnessResults = await Promise.all(
+          population.map(async (individual, index) => {
+            try {
+              return await this.evaluateFitness(individual, constraints);
+            } catch (error) {
+              console.warn(`Warning: Fitness evaluation failed for individual ${index}:`, error.message);
+              return 0; // Assign low fitness to invalid individuals
+            }
+          })
+        );
 
-      // Selection: keep elite individuals
-      const sortedIndividuals = population
-        .map((individual, index) => ({ individual, fitness: fitnessScores[index] }))
-        .sort((a, b) => b.fitness - a.fitness);
-
-      const newPopulation = sortedIndividuals
-        .slice(0, eliteSize)
-        .map(item => [...item.individual]);
-
-      // Crossover and mutation to fill rest of population
-      while (newPopulation.length < populationSize) {
-        const parent1 = this.tournamentSelection(sortedIndividuals);
-        const parent2 = this.tournamentSelection(sortedIndividuals);
-        
-        let offspring = Math.random() < crossoverRate ?
-          this.crossover(parent1, parent2) : [...parent1];
-        
-        if (Math.random() < mutationRate) {
-          offspring = this.mutate(offspring);
+        // Track best fitness
+        const currentBest = Math.max(...fitnessResults);
+        if (currentBest > bestOverallFitness) {
+          bestOverallFitness = currentBest;
+          stagnationCounter = 0;
+        } else {
+          stagnationCounter++;
         }
-        
-        newPopulation.push(offspring);
-      }
 
-      population = newPopulation;
-
-      // Early termination if no improvement
-      if (generation > 20 && generation % 10 === 0) {
-        const currentBest = Math.max(...fitnessScores);
-        const previousBest = this.previousBestFitness || 0;
-        
-        if (Math.abs(currentBest - previousBest) < 0.001) {
-          break; // Converged
+        // Early termination if stagnant
+        if (stagnationCounter > 15) {
+          console.log(`🔄 Early termination at generation ${generation} due to stagnation`);
+          break;
         }
-        
-        this.previousBestFitness = currentBest;
+
+        // Selection and reproduction
+        const sortedIndividuals = population
+          .map((individual, index) => ({ individual, fitness: fitnessResults[index] }))
+          .sort((a, b) => b.fitness - a.fitness);
+
+        // Keep elite
+        const newPopulation = sortedIndividuals
+          .slice(0, eliteSize)
+          .map(item => [...item.individual]);
+
+        // Generate offspring
+        while (newPopulation.length < populationSize) {
+          const parent1 = this.tournamentSelection(sortedIndividuals);
+          const parent2 = this.tournamentSelection(sortedIndividuals);
+          
+          let offspring;
+          if (Math.random() < crossoverRate) {
+            offspring = this.crossover(parent1, parent2);
+          } else {
+            offspring = [...parent1];
+          }
+          
+          if (Math.random() < mutationRate) {
+            offspring = this.mutate(offspring);
+          }
+          
+          newPopulation.push(offspring);
+        }
+
+        population = newPopulation;
+
+        if (generation % 10 === 0) {
+          console.log(`Generation ${generation}: Best fitness = ${currentBest.toFixed(4)}`);
+        }
+      } catch (error) {
+        console.error(`Error in generation ${generation}:`, error.message);
+        break;
       }
     }
 
     // Return best solution
-    const finalFitnessScores = await Promise.all(
-      population.map(individual => this.evaluateFitness(individual, constraints))
+    const finalFitnessResults = await Promise.all(
+      population.map(individual => this.evaluateFitness(individual, constraints).catch(() => 0))
     );
 
-    const bestIndex = finalFitnessScores.indexOf(Math.max(...finalFitnessScores));
+    const bestIndex = finalFitnessResults.indexOf(Math.max(...finalFitnessResults));
     const bestRoute = population[bestIndex];
 
     const metrics = await this.calculateRouteMetrics(bestRoute, constraints);
+
+    console.log(`🎯 Genetic algorithm complete: Best fitness = ${Math.max(...finalFitnessResults).toFixed(4)}`);
 
     return {
       route: bestRoute,
       ...metrics,
       algorithm: 'genetic',
-      generations: generation
+      generations: generation + 1,
+      finalFitness: Math.max(...finalFitnessResults)
     };
   }
 
   /**
-   * Dynamic Programming TSP solver for optimal solutions
-   * Uses Held-Karp algorithm for small to medium problems
+   * Nearest Neighbor Algorithm - Simple and fast
    */
-  async dynamicProgrammingTSP(places, constraints) {
-    if (places.length > 12) {
-      throw new Error('Dynamic programming TSP limited to 12 places for performance');
+  async nearestNeighborOptimization(places, constraints = {}) {
+    console.log(`🎯 Nearest Neighbor: Processing ${places.length} places`);
+
+    const validPlaces = this.validatePlacesForOptimization(places);
+    if (validPlaces.length === 0) {
+      return { route: [], totalTime: 0, totalDistance: 0, totalCost: 0, efficiency: 0 };
     }
 
-    const n = places.length;
-    if (n === 0) return { route: [], totalDistance: 0 };
+    const { startLocation } = constraints;
+    const unvisited = [...validPlaces];
+    const route = [];
+    let currentLocation = startLocation || (validPlaces[0] ? validPlaces[0].location : null);
+    let totalDistance = 0;
+    let totalTime = 0;
 
-    // Build distance matrix
-    const distances = await this.buildCompleteDistanceMatrix(places, constraints.startLocation);
-    
-    // DP table: dp[mask][i] = minimum cost to visit all places in mask ending at i
-    const dp = Array(1 << n).fill(null).map(() => Array(n).fill(Infinity));
-    const parent = Array(1 << n).fill(null).map(() => Array(n).fill(-1));
+    // If no start location, start from first place
+    if (!startLocation && validPlaces.length > 0) {
+      const startPlace = unvisited.shift();
+      route.push(startPlace);
+      currentLocation = startPlace.location;
+      totalTime += startPlace.averageVisitDuration;
+    }
 
-    // Base case: starting from place 0
-    dp[1][0] = 0;
+    while (unvisited.length > 0) {
+      let nearestPlace = null;
+      let nearestDistance = Infinity;
+      let nearestIndex = -1;
 
-    // Fill DP table
-    for (let mask = 1; mask < (1 << n); mask++) {
-      for (let u = 0; u < n; u++) {
-        if (!(mask & (1 << u))) continue;
-        if (dp[mask][u] === Infinity) continue;
-
-        for (let v = 0; v < n; v++) {
-          if (mask & (1 << v)) continue;
-          
-          const newMask = mask | (1 << v);
-          const newCost = dp[mask][u] + distances[u][v];
-          
-          if (newCost < dp[newMask][v]) {
-            dp[newMask][v] = newCost;
-            parent[newMask][v] = u;
+      for (let i = 0; i < unvisited.length; i++) {
+        try {
+          const distance = await this.getTravelDistance(currentLocation, unvisited[i].location);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestPlace = unvisited[i];
+            nearestIndex = i;
           }
-        }
-      }
-    }
-
-    // Find optimal ending place
-    const finalMask = (1 << n) - 1;
-    let minCost = Infinity;
-    let lastPlace = -1;
-
-    for (let i = 0; i < n; i++) {
-      if (dp[finalMask][i] < minCost) {
-        minCost = dp[finalMask][i];
-        lastPlace = i;
-      }
-    }
-
-    // Reconstruct path
-    const path = [];
-    let currentMask = finalMask;
-    let currentPlace = lastPlace;
-
-    while (currentPlace !== -1) {
-      path.unshift(currentPlace);
-      const prevPlace = parent[currentMask][currentPlace];
-      currentMask ^= (1 << currentPlace);
-      currentPlace = prevPlace;
-    }
-
-    const optimalRoute = path.map(index => places[index]);
-    const metrics = await this.calculateRouteMetrics(optimalRoute, constraints);
-
-    return {
-      route: optimalRoute,
-      ...metrics,
-      algorithm: 'dynamic-programming-tsp',
-      optimal: true
-    };
-  }
-
-  /**
-   * Ant Colony Optimization for complex routing problems
-   */
-  async antColonyOptimization(places, constraints) {
-    const {
-      antCount = 20,
-      iterations = 100,
-      alpha = 1.0, // pheromone importance
-      beta = 2.0,  // heuristic importance
-      evaporation = 0.5,
-      pheromoneDeposit = 1.0
-    } = constraints.acoParams || {};
-
-    if (places.length < 3) {
-      return this.advancedGreedyOptimization(places, constraints);
-    }
-
-    const n = places.length;
-    
-    // Initialize pheromone matrix
-    const pheromones = Array(n).fill(null).map(() => Array(n).fill(1.0));
-    
-    // Build heuristic matrix (1/distance)
-    const heuristics = await this.buildHeuristicMatrix(places, constraints);
-    
-    let bestRoute = null;
-    let bestDistance = Infinity;
-
-    for (let iteration = 0; iteration < iterations; iteration++) {
-      const routes = [];
-      
-      // Each ant constructs a route
-      for (let ant = 0; ant < antCount; ant++) {
-        const route = await this.constructAntRoute(
-          places, 
-          pheromones, 
-          heuristics, 
-          alpha, 
-          beta,
-          constraints
-        );
-        
-        if (route && route.length > 0) {
-          const distance = await this.calculateTotalRouteDistance(route);
-          routes.push({ route, distance });
-          
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            bestRoute = [...route];
+        } catch (error) {
+          // Use straight-line distance as fallback
+          const straightDistance = this.calculateStraightLineDistance(currentLocation, unvisited[i].location);
+          if (straightDistance < nearestDistance) {
+            nearestDistance = straightDistance;
+            nearestPlace = unvisited[i];
+            nearestIndex = i;
           }
         }
       }
 
-      // Update pheromones
-      this.updatePheromones(pheromones, routes, evaporation, pheromoneDeposit);
+      if (nearestPlace) {
+        route.push(nearestPlace);
+        unvisited.splice(nearestIndex, 1);
+        totalDistance += nearestDistance;
+        totalTime += nearestPlace.averageVisitDuration + (nearestDistance / 40) * 60; // Assume 40 km/h
+        currentLocation = nearestPlace.location;
+      } else {
+        break;
+      }
     }
 
-    const metrics = await this.calculateRouteMetrics(bestRoute, constraints);
+    const totalCost = route.reduce((sum, place) => sum + this.getPlaceEntryCost(place), 0);
+
+    console.log(`✅ Nearest neighbor complete: ${route.length} places in route`);
 
     return {
-      route: bestRoute,
-      ...metrics,
-      algorithm: 'ant-colony',
-      iterations
+      route,
+      totalTime,
+      totalDistance,
+      totalCost,
+      efficiency: this.calculateEfficiency(route, totalTime),
+      algorithm: 'nearest-neighbor'
     };
   }
 
   /**
-   * Simulated Annealing for escaping local optima
-   */
-  async simulatedAnnealingOptimization(places, constraints) {
-    if (places.length === 0) return { route: [], totalDistance: 0 };
-
-    const {
-      initialTemperature = 10000,
-      coolingRate = 0.95,
-      minTemperature = 1,
-      maxIterationsPerTemp = 100
-    } = constraints.saParams || {};
-
-    // Start with greedy solution
-    let currentRoute = (await this.advancedGreedyOptimization(places, constraints)).route;
-    let currentCost = await this.calculateTotalRouteDistance(currentRoute);
-    
-    let bestRoute = [...currentRoute];
-    let bestCost = currentCost;
-    
-    let temperature = initialTemperature;
-
-    while (temperature > minTemperature) {
-      for (let i = 0; i < maxIterationsPerTemp; i++) {
-        // Generate neighbor solution
-        const neighborRoute = this.generateNeighborSolution(currentRoute);
-        const neighborCost = await this.calculateTotalRouteDistance(neighborRoute);
-        
-        // Calculate acceptance probability
-        const delta = neighborCost - currentCost;
-        const acceptanceProbability = delta < 0 ? 1 : Math.exp(-delta / temperature);
-        
-        // Accept or reject the neighbor
-        if (Math.random() < acceptanceProbability) {
-          currentRoute = neighborRoute;
-          currentCost = neighborCost;
-          
-          // Update best if improved
-          if (currentCost < bestCost) {
-            bestRoute = [...currentRoute];
-            bestCost = currentCost;
-          }
-        }
-      }
-      
-      temperature *= coolingRate;
-    }
-
-    const metrics = await this.calculateRouteMetrics(bestRoute, constraints);
-
-    return {
-      route: bestRoute,
-      ...metrics,
-      algorithm: 'simulated-annealing',
-      finalTemperature: temperature
-    };
-  }
-
-  /**
-   * Multi-Objective Optimization using NSGA-II
-   * Optimizes for multiple criteria simultaneously
-   */
-  async multiObjectiveOptimization(places, constraints) {
-    const {
-      populationSize = 100,
-      generations = 50,
-      objectives = ['distance', 'time', 'cost', 'rating']
-    } = constraints.moParams || {};
-
-    // Initialize population
-    let population = await this.initializePopulation(places, populationSize, constraints);
-    
-    for (let generation = 0; generation < generations; generation++) {
-      // Evaluate all objectives for each individual
-      const objectiveValues = await Promise.all(
-        population.map(individual => this.evaluateMultipleObjectives(individual, objectives, constraints))
-      );
-
-      // Non-dominated sorting
-      const fronts = this.nonDominatedSort(population, objectiveValues);
-      
-      // Create new population
-      const newPopulation = [];
-      let frontIndex = 0;
-      
-      while (newPopulation.length + fronts[frontIndex].length <= populationSize) {
-        newPopulation.push(...fronts[frontIndex]);
-        frontIndex++;
-      }
-      
-      // Fill remaining slots using crowding distance
-      if (newPopulation.length < populationSize) {
-        const remainingSlots = populationSize - newPopulation.length;
-        const lastFront = fronts[frontIndex];
-        const crowdingDistances = this.calculateCrowdingDistance(lastFront, objectiveValues);
-        
-        const sortedByDistance = lastFront
-          .map((individual, index) => ({ individual, distance: crowdingDistances[index] }))
-          .sort((a, b) => b.distance - a.distance);
-        
-        newPopulation.push(...sortedByDistance.slice(0, remainingSlots).map(item => item.individual));
-      }
-
-      population = newPopulation;
-
-      // Generate offspring through crossover and mutation
-      if (generation < generations - 1) {
-        const offspring = [];
-        
-        for (let i = 0; i < populationSize; i += 2) {
-          const parent1 = this.tournamentSelection(population);
-          const parent2 = this.tournamentSelection(population);
-          
-          const [child1, child2] = this.crossover(parent1, parent2);
-          
-          offspring.push(this.mutate(child1));
-          offspring.push(this.mutate(child2));
-        }
-        
-        population = [...population, ...offspring].slice(0, populationSize);
-      }
-    }
-
-    // Return Pareto front solutions
-    const finalObjectives = await Promise.all(
-      population.map(individual => this.evaluateMultipleObjectives(individual, objectives, constraints))
-    );
-    
-    const paretoFront = this.extractParetoFront(population, finalObjectives);
-    
-    // Select best compromise solution
-    const bestCompromise = this.selectBestCompromise(paretoFront, objectives);
-    const metrics = await this.calculateRouteMetrics(bestCompromise, constraints);
-
-    return {
-      route: bestCompromise,
-      ...metrics,
-      paretoFront: paretoFront.map(route => ({
-        route,
-        objectives: this.evaluateMultipleObjectives(route, objectives, constraints)
-      })),
-      algorithm: 'multi-objective-nsga2'
-    };
-  }
-
-  /**
-   * Helper Methods
+   * Helper Methods - Fixed for your data structure
    */
 
-  async checkConstraints(place, currentTime, currentCost, constraints) {
+  checkConstraints(place, currentTime, currentCost, constraints) {
     const {
       timeConstraints = {},
       budget = Infinity,
@@ -498,7 +375,8 @@ class OptimizationAlgorithms {
     }
 
     // Budget constraint
-    if (currentCost + (place.entryFee?.indian || 0) > budget) {
+    const placeCost = this.getPlaceEntryCost(place);
+    if (currentCost + placeCost > budget) {
       return { feasible: false, reason: 'budget_exceeded' };
     }
 
@@ -532,13 +410,41 @@ class OptimizationAlgorithms {
     return { ...scores, totalScore };
   }
 
+  // Fixed helper methods for your Place schema
+  getPlaceEntryCost(place) {
+    // Handle both entryFee structures from your seed data
+    if (place.entryFee) {
+      return place.entryFee.indian || place.entryFee.amount || 0;
+    }
+    return 0;
+  }
+
+  validatePlacesForOptimization(places) {
+    return places.filter(place => {
+      return place && 
+             place.location && 
+             typeof place.location.latitude === 'number' && 
+             typeof place.location.longitude === 'number' &&
+             place.averageVisitDuration &&
+             place.averageVisitDuration > 0 &&
+             place.name;
+    });
+  }
+
   normalizeRating(rating) {
-    return (rating - 1) / 4; // Normalize 1-5 scale to 0-1
+    // Your ratings are 1-5 scale
+    return Math.max(0, Math.min(1, (rating - 1) / 4));
   }
 
   async calculateDistanceScore(place, currentLocation) {
-    const distance = await this.getTravelDistance(currentLocation, place.location);
-    return Math.max(0, 1 - distance / 100); // Penalize distances > 100km
+    try {
+      const distance = await this.getTravelDistance(currentLocation, place.location);
+      return Math.max(0, 1 - distance / 100); // Penalize distances > 100km
+    } catch (error) {
+      // Fallback to straight-line distance
+      const distance = this.calculateStraightLineDistance(currentLocation, place.location);
+      return Math.max(0, 1 - distance / 100);
+    }
   }
 
   calculateTimeScore(place, timeConstraints) {
@@ -554,13 +460,19 @@ class OptimizationAlgorithms {
   calculateCostScore(place, budget) {
     if (!budget || budget === Infinity) return 1;
     
-    const cost = place.entryFee?.indian || 0;
-    return Math.max(0, 1 - cost / (budget * 0.5));
+    const cost = this.getPlaceEntryCost(place);
+    return Math.max(0, 1 - cost / (budget * 0.3));
   }
 
   calculatePopularityScore(place) {
+    const rating = place.rating || 0;
     const reviewCount = place.reviewCount || 0;
-    return Math.min(1, Math.log(reviewCount + 1) / Math.log(1000)); // Normalize to 0-1
+    
+    // Combine rating and review count
+    const ratingScore = rating / 5;
+    const reviewScore = Math.min(1, Math.log(reviewCount + 1) / Math.log(100));
+    
+    return (ratingScore * 0.7 + reviewScore * 0.3);
   }
 
   calculateDiversityScore(candidate, selectedPlaces) {
@@ -577,64 +489,69 @@ class OptimizationAlgorithms {
     
     // Penalty for overrepresented category
     const categoryCount = existingCategories.filter(cat => cat === candidateCategory).length;
-    return Math.max(0, 1 - categoryCount * 0.2);
+    return Math.max(0.2, 1 - categoryCount * 0.25);
   }
 
   calculateEfficiency(places, totalTime) {
-    return totalTime > 0 ? places.length / (totalTime / 60) : 0;
+    if (totalTime <= 0 || places.length === 0) return 0;
+    return (places.length * 60) / totalTime; // Places per hour
+  }
+
+  async getTravelData(from, to) {
+    try {
+      const result = await this.distanceCalculator.calculateDrivingDistance(from, to);
+      return {
+        distance: result.distance,
+        travelTime: result.duration
+      };
+    } catch (error) {
+      // Fallback calculation
+      const straightDistance = this.calculateStraightLineDistance(from, to);
+      return {
+        distance: straightDistance,
+        travelTime: (straightDistance / 40) * 60 // Assume 40 km/h average speed
+      };
+    }
   }
 
   async getTravelDistance(from, to) {
-    const result = await this.distanceCalculator.calculateDrivingDistance(from, to);
-    return result.distance;
+    const travelData = await this.getTravelData(from, to);
+    return travelData.distance;
   }
 
-  async getTravelTime(from, to) {
-    const result = await this.distanceCalculator.calculateDrivingDistance(from, to);
-    return result.duration;
-  }
-
-  async buildDistanceMatrix(places, startLocation) {
-    const locations = startLocation ? [startLocation, ...places.map(p => p.location)] : places.map(p => p.location);
-    return this.distanceCalculator.calculateDistanceMatrix(locations, locations);
-  }
-
-  async buildCompleteDistanceMatrix(places, startLocation) {
-    const matrix = [];
-    const allLocations = startLocation ? [startLocation, ...places.map(p => p.location)] : places.map(p => p.location);
-    
-    for (let i = 0; i < allLocations.length; i++) {
-      matrix[i] = [];
-      for (let j = 0; j < allLocations.length; j++) {
-        if (i === j) {
-          matrix[i][j] = 0;
-        } else {
-          const result = await this.distanceCalculator.calculateDrivingDistance(
-            allLocations[i], 
-            allLocations[j]
-          );
-          matrix[i][j] = result.distance;
-        }
-      }
-    }
-    
-    return matrix;
-  }
-
-  async buildHeuristicMatrix(places, constraints) {
-    const distances = await this.buildCompleteDistanceMatrix(places, constraints.startLocation);
-    return distances.map(row => row.map(distance => distance > 0 ? 1 / distance : 0));
+  calculateStraightLineDistance(from, to) {
+    const R = 6371; // Earth's radius in km
+    const dLat = (to.latitude - from.latitude) * Math.PI / 180;
+    const dLon = (to.longitude - from.longitude) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(from.latitude * Math.PI / 180) * Math.cos(to.latitude * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   }
 
   async initializePopulation(places, populationSize, constraints) {
     const population = [];
     
-    // Add greedy solution as seed
-    const greedySolution = await this.advancedGreedyOptimization(places, constraints);
-    population.push(greedySolution.route);
+    try {
+      // Add greedy solution as seed
+      const greedySolution = await this.advancedGreedyOptimization(places, constraints);
+      if (greedySolution.route.length > 0) {
+        population.push(greedySolution.route);
+      }
+      
+      // Add nearest neighbor solution
+      const nnSolution = await this.nearestNeighborOptimization(places, constraints);
+      if (nnSolution.route.length > 0) {
+        population.push(nnSolution.route);
+      }
+    } catch (error) {
+      console.warn('Warning: Could not generate seeded solutions:', error.message);
+    }
     
-    // Generate random permutations
-    for (let i = 1; i < populationSize; i++) {
+    // Generate random permutations for the rest
+    while (population.length < populationSize) {
       const randomRoute = this.shuffleArray([...places]);
       population.push(randomRoute);
     }
@@ -652,15 +569,38 @@ class OptimizationAlgorithms {
   }
 
   async evaluateFitness(individual, constraints) {
-    const metrics = await this.calculateRouteMetrics(individual, constraints);
+    try {
+      const metrics = await this.calculateRouteMetrics(individual, constraints);
+      
+      // Prevent division by zero
+      if (metrics.totalDistance === 0 && metrics.totalTime === 0) {
+        return individual.length * 0.1; // Minimal fitness for empty routes
+      }
+
+      // Multi-criteria fitness function
+      const distanceScore = 1 / (1 + metrics.totalDistance / 100); // Normalize by 100km
+      const timeScore = 1 / (1 + metrics.totalTime / 480); // Normalize by 8 hours
+      const ratingScore = metrics.averageRating / 5;
+      const diversityScore = this.calculateRouteDiversity(individual);
+      
+      const fitness = (distanceScore * 0.3 + timeScore * 0.25 + ratingScore * 0.35 + diversityScore * 0.1);
+      return Math.max(0.01, fitness); // Ensure positive fitness
+    } catch (error) {
+      console.warn('Fitness evaluation error:', error.message);
+      return 0.01; // Low fitness for problematic individuals
+    }
+  }
+
+  calculateRouteDiversity(route) {
+    if (route.length <= 1) return 0;
     
-    // Multi-criteria fitness function
-    const distanceScore = 1 / (1 + metrics.totalDistance);
-    const timeScore = 1 / (1 + metrics.totalTime);
-    const ratingScore = metrics.averageRating / 5;
-    const costScore = constraints.budget ? 1 / (1 + metrics.totalCost / constraints.budget) : 1;
+    const categories = new Set(route.map(place => place.category));
+    const cities = new Set(route.map(place => place.city));
     
-    return (distanceScore + timeScore + ratingScore + costScore) / 4;
+    const categoryDiversity = categories.size / route.length;
+    const cityDiversity = cities.size / route.length;
+    
+    return (categoryDiversity + cityDiversity) / 2;
   }
 
   tournamentSelection(individuals, tournamentSize = 3) {
@@ -675,89 +615,72 @@ class OptimizationAlgorithms {
   }
 
   crossover(parent1, parent2) {
+    if (!parent1 || !parent2 || parent1.length === 0 || parent2.length === 0) {
+      return parent1.length > 0 ? [...parent1] : [...parent2];
+    }
+
     // Order crossover (OX)
-    const start = Math.floor(Math.random() * parent1.length);
-    const end = Math.floor(Math.random() * parent1.length);
-    const [crossStart, crossEnd] = [Math.min(start, end), Math.max(start, end)];
+    const length = parent1.length;
+    const start = Math.floor(Math.random() * length);
+    const end = start + Math.floor(Math.random() * (length - start));
     
-    const child = Array(parent1.length).fill(null);
+    const child = Array(length).fill(null);
     
     // Copy segment from parent1
-    for (let i = crossStart; i <= crossEnd; i++) {
+    for (let i = start; i < end; i++) {
       child[i] = parent1[i];
     }
     
     // Fill remaining positions from parent2
     let parent2Index = 0;
-    for (let i = 0; i < child.length; i++) {
+    for (let i = 0; i < length; i++) {
       if (child[i] === null) {
-        while (child.includes(parent2[parent2Index])) {
+        while (parent2Index < parent2.length && child.some(place => place && place.id === parent2[parent2Index].id)) {
           parent2Index++;
         }
-        child[i] = parent2[parent2Index];
-        parent2Index++;
+        if (parent2Index < parent2.length) {
+          child[i] = parent2[parent2Index];
+          parent2Index++;
+        }
       }
     }
     
-    return child;
+    // Filter out null values
+    return child.filter(place => place !== null);
   }
 
-  mutate(individual, mutationRate = 0.1) {
-    if (Math.random() > mutationRate) return individual;
+  mutate(individual, mutationRate = 0.15) {
+    if (Math.random() > mutationRate || individual.length < 2) return individual;
     
     const mutated = [...individual];
     const mutationType = Math.random();
     
-    if (mutationType < 0.5) {
+    if (mutationType < 0.5 && mutated.length >= 2) {
       // Swap mutation
       const i = Math.floor(Math.random() * mutated.length);
       const j = Math.floor(Math.random() * mutated.length);
       [mutated[i], mutated[j]] = [mutated[j], mutated[i]];
-    } else {
-      // Reverse mutation
+    } else if (mutated.length >= 3) {
+      // Reverse segment mutation
       const start = Math.floor(Math.random() * mutated.length);
       const end = Math.floor(Math.random() * mutated.length);
       const [reverseStart, reverseEnd] = [Math.min(start, end), Math.max(start, end)];
       
-      const segment = mutated.slice(reverseStart, reverseEnd + 1).reverse();
-      mutated.splice(reverseStart, reverseEnd - reverseStart + 1, ...segment);
+      if (reverseEnd > reverseStart) {
+        const segment = mutated.slice(reverseStart, reverseEnd + 1).reverse();
+        mutated.splice(reverseStart, reverseEnd - reverseStart + 1, ...segment);
+      }
     }
     
     return mutated;
   }
 
-  generateNeighborSolution(route) {
-    const neighbor = [...route];
-    const operationType = Math.random();
-    
-    if (operationType < 0.4) {
-      // 2-opt swap
-      const i = Math.floor(Math.random() * neighbor.length);
-      const j = Math.floor(Math.random() * neighbor.length);
-      if (i !== j) {
-        [neighbor[i], neighbor[j]] = [neighbor[j], neighbor[i]];
-      }
-    } else if (operationType < 0.7) {
-      // Insert operation
-      const from = Math.floor(Math.random() * neighbor.length);
-      const to = Math.floor(Math.random() * neighbor.length);
-      const element = neighbor.splice(from, 1)[0];
-      neighbor.splice(to, 0, element);
-    } else {
-      // Reverse segment
-      const start = Math.floor(Math.random() * neighbor.length);
-      const length = Math.floor(Math.random() * (neighbor.length - start)) + 1;
-      const segment = neighbor.splice(start, length).reverse();
-      neighbor.splice(start, 0, ...segment);
-    }
-    
-    return neighbor;
-  }
-
-  async calculateRouteMetrics(route, constraints) {
+  async calculateRouteMetrics(route, constraints = {}) {
     if (!route || route.length === 0) {
       return {
         totalTime: 0,
+        totalTravelTime: 0,
+        totalVisitTime: 0,
         totalDistance: 0,
         totalCost: 0,
         averageRating: 0,
@@ -765,33 +688,43 @@ class OptimizationAlgorithms {
       };
     }
 
-    const routeMetrics = await this.distanceCalculator.calculateRouteMetrics(
-      route, 
-      constraints.startLocation
-    );
-
     const totalVisitTime = route.reduce((sum, place) => sum + (place.averageVisitDuration || 60), 0);
-    const totalCost = route.reduce((sum, place) => sum + (place.entryFee?.indian || 0), 0);
+    const totalCost = route.reduce((sum, place) => sum + this.getPlaceEntryCost(place), 0);
     const averageRating = route.reduce((sum, place) => sum + (place.rating || 0), 0) / route.length;
 
+    let totalDistance = 0;
+    let totalTravelTime = 0;
+
+    // Calculate travel distances and times
+    const locations = constraints.startLocation ? 
+      [constraints.startLocation, ...route.map(p => p.location)] : 
+      route.map(p => p.location);
+
+    for (let i = 1; i < locations.length; i++) {
+      try {
+        const travelData = await this.getTravelData(locations[i-1], locations[i]);
+        totalDistance += travelData.distance;
+        totalTravelTime += travelData.travelTime;
+      } catch (error) {
+        // Fallback calculation
+        const fallbackDistance = this.calculateStraightLineDistance(locations[i-1], locations[i]);
+        totalDistance += fallbackDistance;
+        totalTravelTime += (fallbackDistance / 40) * 60; // 40 km/h average
+      }
+    }
+
     return {
-      totalTime: routeMetrics.totalTime + totalVisitTime,
-      totalTravelTime: routeMetrics.totalTime,
+      totalTime: totalVisitTime + totalTravelTime,
+      totalTravelTime,
       totalVisitTime,
-      totalDistance: routeMetrics.totalDistance,
+      totalDistance,
       totalCost,
       averageRating,
-      efficiency: this.calculateEfficiency(route, routeMetrics.totalTime + totalVisitTime)
+      efficiency: this.calculateEfficiency(route, totalVisitTime + totalTravelTime)
     };
   }
 
-  async calculateTotalRouteDistance(route) {
-    const metrics = await this.calculateRouteMetrics(route, {});
-    return metrics.totalDistance;
-  }
-
   validateFinalRoute(route, constraints) {
-    // Implement constraint validation logic
     return {
       timeValid: true,
       budgetValid: true,
@@ -803,8 +736,53 @@ class OptimizationAlgorithms {
   // Clear cache periodically
   clearCache() {
     this.cache.clear();
-    console.log('Optimization algorithms cache cleared');
+    console.log('🧹 Optimization algorithms cache cleared');
+  }
+
+  // Get available algorithms
+  getAvailableAlgorithms() {
+    return [
+      {
+        name: 'advancedGreedy',
+        displayName: 'Advanced Greedy',
+        description: 'Multi-criteria optimization with balanced scoring',
+        complexity: 'O(n²)',
+        recommended: true
+      },
+      {
+        name: 'genetic',
+        displayName: 'Genetic Algorithm', 
+        description: 'Evolutionary approach for complex optimization',
+        complexity: 'O(g×p×n)', 
+        recommended: false
+      },
+      {
+        name: 'nearestNeighbor',
+        displayName: 'Nearest Neighbor',
+        description: 'Simple and fast distance-based optimization',
+        complexity: 'O(n²)',
+        recommended: false
+      }
+    ];
+  }
+}
+
+// Export the optimization function that was missing
+function applyOptimizationAlgorithm(algorithm, places, constraints) {
+  const optimizer = new OptimizationAlgorithms();
+  
+  switch (algorithm) {
+    case 'advancedGreedy':
+      return optimizer.advancedGreedyOptimization(places, constraints);
+    case 'genetic':
+      return optimizer.geneticAlgorithmOptimization(places, constraints);
+    case 'nearestNeighbor':
+      return optimizer.nearestNeighborOptimization(places, constraints);
+    default:
+      console.warn(`Unknown algorithm: ${algorithm}, falling back to advancedGreedy`);
+      return optimizer.advancedGreedyOptimization(places, constraints);
   }
 }
 
 module.exports = OptimizationAlgorithms;
+module.exports.applyOptimizationAlgorithm = applyOptimizationAlgorithm;
