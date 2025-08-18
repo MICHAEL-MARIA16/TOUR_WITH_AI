@@ -349,6 +349,123 @@ export const apiService = {
     }
   },
 
+  async generateDetailedTripPlan(payload) {
+    try {
+      console.log('🧠 Calling detailed trip plan generation...');
+      console.log('📊 Payload:', {
+        placesCount: payload.places?.length,
+        algorithm: payload.algorithm,
+        startTime: payload.preferences?.startTime
+      });
+
+      const response = await apiClient.post('/trips/generate-detailed-plan', payload);
+      
+      console.log('✅ Detailed plan generation response:', {
+        success: response.data.success,
+        aiModel: response.data.aiModel,
+        hasTimeline: !!response.data.data?.timeline,
+        hasCulturalGuide: !!response.data.data?.culturalGuide
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('💥 Detailed plan generation failed:', error);
+      throw new Error(`Detailed plan generation failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // Enhanced route optimization that also prepares for detailed plan
+  async optimizeRouteWithAlgorithm(payload) {
+    try {
+      console.log('🚀 Calling algorithm-based route optimization...');
+      console.log('📊 Payload:', {
+        placesCount: payload.places?.length,
+        optimizationLevel: payload.preferences?.optimizationLevel,
+        totalTimeAvailable: payload.constraints?.totalTimeAvailable,
+        startLocation: payload.constraints?.startLocation?.name
+      });
+
+      const response = await apiClient.post('/routes/optimize-with-algorithm', payload);
+      
+      console.log('✅ Algorithm optimization response:', {
+        success: response.data.success,
+        algorithm: response.data.algorithm,
+        placesOptimized: response.data.route?.length,
+        efficiency: response.data.metrics?.efficiency,
+        hasAiInsights: !!response.data.aiInsights
+      });
+
+      // If optimization is successful, prepare data for potential detailed plan generation
+      if (response.data.success && response.data.route) {
+        // Store optimization result for detailed plan generation
+        response.data._detailedPlanPayload = {
+          places: response.data.route,
+          preferences: payload.preferences || {},
+          routeMetrics: response.data.metrics || {},
+          algorithm: response.data.algorithm || 'unknown',
+          constraints: payload.constraints || {}
+        };
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('💥 Algorithm optimization failed:', error);
+      throw new Error(`Route optimization failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // TRIP PLANNING API - Enhanced
+  async createTripWithDetailedPlan(tripData) {
+    try {
+      // First optimize the route
+      const optimizedResult = await this.optimizeRouteWithAlgorithm(tripData);
+      
+      if (optimizedResult.success) {
+        // Then generate detailed plan
+        const detailedPlan = await this.generateDetailedTripPlan(optimizedResult._detailedPlanPayload);
+        
+        // Combine both results
+        return {
+          success: true,
+          optimizedRoute: optimizedResult,
+          detailedPlan: detailedPlan.data,
+          combined: true
+        };
+      }
+      
+      return optimizedResult;
+    } catch (error) {
+      throw new Error(`Complete trip creation failed: ${error.message}`);
+    }
+  },
+
+  // Enhanced trip optimization with detailed plan option
+  async optimizeTrip(payload, includeDetailedPlan = false) {
+    try {
+      const response = await apiClient.post('/trips/optimize', payload);
+      
+      if (includeDetailedPlan && response.data.success) {
+        try {
+          const detailedPlan = await this.generateDetailedTripPlan({
+            places: response.data.route || [],
+            preferences: payload.preferences || {},
+            routeMetrics: response.data.metrics || {},
+            algorithm: response.data.algorithm || 'unknown'
+          });
+          
+          response.data.detailedPlan = detailedPlan.data;
+        } catch (detailError) {
+          console.warn('Failed to generate detailed plan:', detailError);
+          // Continue without detailed plan
+        }
+      }
+      
+      return response.data;
+    } catch (error) {
+      throw new Error(`Trip optimization failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
   // UTILITY FUNCTIONS
   isOnline() {
     return navigator.onLine;
@@ -380,6 +497,166 @@ export const apiService = {
       timestamp: new Date().toISOString()
     };
   }
+};
+
+// Enhanced error handling for trip planning
+export const handleTripPlanningError = (error) => {
+  if (error.message.includes('Gemini')) {
+    return {
+      type: 'AI_ERROR',
+      message: 'AI service is temporarily unavailable. Using fallback planning.',
+      fallbackAvailable: true
+    };
+  }
+  
+  if (error.message.includes('optimization')) {
+    return {
+      type: 'OPTIMIZATION_ERROR',
+      message: 'Route optimization failed. Please try with fewer places.',
+      suggestion: 'Reduce the number of selected places or adjust time constraints.'
+    };
+  }
+  
+  if (error.message.includes('timeout')) {
+    return {
+      type: 'TIMEOUT_ERROR',
+      message: 'Request timed out. Please try again.',
+      suggestion: 'Check your internet connection and try again.'
+    };
+  }
+  
+  return {
+    type: 'GENERAL_ERROR',
+    message: error.message || 'Something went wrong. Please try again.',
+    suggestion: 'Please try again or contact support if the problem persists.'
+  };
+};
+
+// Trip planning utilities
+export const tripPlanningUtils = {
+  // Validate trip data before sending to API
+  validateTripData(data) {
+    const errors = [];
+    
+    if (!data.places || !Array.isArray(data.places) || data.places.length === 0) {
+      errors.push('At least one place must be selected');
+    }
+    
+    if (data.places && data.places.length > 20) {
+      errors.push('Maximum 20 places allowed');
+    }
+    
+    if (data.preferences?.startTime && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(data.preferences.startTime)) {
+      errors.push('Invalid start time format');
+    }
+    
+    if (data.constraints?.totalTimeAvailable && (data.constraints.totalTimeAvailable < 120 || data.constraints.totalTimeAvailable > 1440)) {
+      errors.push('Time available must be between 2-24 hours');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  },
+
+  // Format trip data for API
+  formatTripDataForAPI(places, settings) {
+    return {
+      places: places.map(place => ({
+        id: place.id,
+        name: place.name,
+        category: place.category || 'attraction',
+        location: {
+          latitude: parseFloat(place.location.latitude),
+          longitude: parseFloat(place.location.longitude)
+        },
+        averageVisitDuration: parseInt(place.averageVisitDuration) || 90,
+        rating: parseFloat(place.rating) || 3.5,
+        city: place.city || 'Unknown',
+        state: place.state || 'Unknown',
+        entryFee: place.entryFee || { indian: 0, foreign: 0 },
+        description: place.description || '',
+        amenities: place.amenities || [],
+        bestTimeToVisit: place.bestTimeToVisit || ['morning']
+      })),
+      preferences: {
+        startTime: settings.startTime,
+        optimizationLevel: settings.optimizationLevel,
+        optimizeFor: settings.preferences?.optimizeFor || 'balanced',
+        ...settings.preferences
+      },
+      constraints: {
+        totalTimeAvailable: settings.totalTimeAvailable,
+        startDay: new Date().getDay(),
+        startLocation: settings.constraints?.startLocation || {
+          name: 'Coimbatore Tidal Park',
+          latitude: 11.0638,
+          longitude: 77.0596
+        },
+        ...settings.constraints
+      }
+    };
+  },
+
+  // Calculate trip statistics
+  calculateTripStats(places) {
+    if (!places || places.length === 0) {
+      return {
+        totalPlaces: 0,
+        categories: [],
+        cities: [],
+        averageRating: 0,
+        totalDuration: 0,
+        estimatedCost: 0
+      };
+    }
+
+    const categories = [...new Set(places.map(p => p.category))];
+    const cities = [...new Set(places.map(p => p.city))];
+    const averageRating = places.reduce((sum, p) => sum + (p.rating || 0), 0) / places.length;
+    const totalDuration = places.reduce((sum, p) => sum + (p.averageVisitDuration || 90), 0);
+    const estimatedCost = places.reduce((sum, p) => sum + (p.entryFee?.indian || p.entryFee?.amount || 0), 0);
+
+    return {
+      totalPlaces: places.length,
+      categories,
+      cities,
+      averageRating: Math.round(averageRating * 10) / 10,
+      totalDuration,
+      estimatedCost
+    };
+  },
+
+  // Format route metrics for display
+  formatRouteMetrics(metrics) {
+    if (!metrics) return {};
+
+    return {
+      totalTime: Math.ceil((metrics.totalTime || 0) / 60) + ' hours',
+      totalDistance: (metrics.totalDistance || 0).toFixed(1) + ' km',
+      efficiency: (metrics.efficiency || 0).toFixed(1) + '%',
+      placesVisited: metrics.placesVisited || 0,
+      estimatedCost: '₹' + (metrics.totalCost || 0)
+    };
+  }
+};
+
+// Export enhanced API client configuration
+export const enhancedApiConfig = {
+  ...apiClient.defaults,
+  timeout: 45000, // Increased timeout for detailed plan generation
+  retries: 2,
+  retryDelay: 1000
+};
+
+// Detailed plan generation status tracking
+export const detailedPlanStatus = {
+  IDLE: 'idle',
+  GENERATING: 'generating',
+  SUCCESS: 'success',
+  ERROR: 'error',
+  FALLBACK: 'fallback'
 };
 
 // Export axios instance for direct use if needed

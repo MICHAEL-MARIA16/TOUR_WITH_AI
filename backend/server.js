@@ -85,6 +85,8 @@ app.use('/api/trips/matrix', intensiveLimiter);
 app.use('/api/routes/optimize', intensiveLimiter);
 app.use('/api/routes/matrix', intensiveLimiter);
 
+app.set('trust proxy', 1);
+
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {

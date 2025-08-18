@@ -4,8 +4,15 @@ const DistanceCalculator = require('../utils/distanceCalculator');
 
 class MapController {
   constructor() {
-    this.distanceCalculator = new DistanceCalculator();
-  }
+  this.distanceCalculator = new DistanceCalculator();
+  
+  this.getMapBounds = this.getMapBounds.bind(this);
+  this.getPlacesInBounds = this.getPlacesInBounds.bind(this);
+  this.getOptimizedRoute = this.getOptimizedRoute.bind(this);
+  this.getClusteredMarkers = this.getClusteredMarkers.bind(this);
+  this.getHeatmapData = this.getHeatmapData.bind(this);
+}
+
 
   /**
    * Get map bounds containing all places
