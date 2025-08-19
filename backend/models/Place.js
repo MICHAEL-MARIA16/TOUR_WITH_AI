@@ -1,58 +1,32 @@
-// backend/models/Place.js - FIXED VERSION WITH COMPLETE SCHEMA
+// backend/models/Place.js - ENHANCED WITH BETTER ID HANDLING
+
 const mongoose = require('mongoose');
 
-// Location schema with 2dsphere indexing
+// Location schema with validation
 const locationSchema = new mongoose.Schema({
   latitude: {
     type: Number,
     required: true,
     min: -90,
-    max: 90
+    max: 90,
+    validate: {
+      validator: function(v) {
+        return !isNaN(v) && isFinite(v);
+      },
+      message: 'Latitude must be a valid number between -90 and 90'
+    }
   },
   longitude: {
     type: Number,
     required: true,
     min: -180,
-    max: 180
-  }
-}, { _id: false });
-
-// Opening hours schema
-const openingHoursSchema = new mongoose.Schema({
-  monday: {
-    open: String,
-    close: String,
-    closed: { type: Boolean, default: false }
-  },
-  tuesday: {
-    open: String,
-    close: String,
-    closed: { type: Boolean, default: false }
-  },
-  wednesday: {
-    open: String,
-    close: String,
-    closed: { type: Boolean, default: false }
-  },
-  thursday: {
-    open: String,
-    close: String,
-    closed: { type: Boolean, default: false }
-  },
-  friday: {
-    open: String,
-    close: String,
-    closed: { type: Boolean, default: false }
-  },
-  saturday: {
-    open: String,
-    close: String,
-    closed: { type: Boolean, default: false }
-  },
-  sunday: {
-    open: String,
-    close: String,
-    closed: { type: Boolean, default: false }
+    max: 180,
+    validate: {
+      validator: function(v) {
+        return !isNaN(v) && isFinite(v);
+      },
+      message: 'Longitude must be a valid number between -180 and 180'
+    }
   }
 }, { _id: false });
 
@@ -68,369 +42,584 @@ const entryFeeSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
-  amount: {
+  student: {
     type: Number,
     default: 0,
     min: 0
+  },
+  senior: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  camera: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  currency: {
+    type: String,
+    default: 'INR',
+    enum: ['INR', 'USD', 'EUR']
   }
 }, { _id: false });
 
-// Main Place schema
+// Opening hours schema for each day
+const dayScheduleSchema = new mongoose.Schema({
+  open: {
+    type: String,
+    match: /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/,
+    default: '06:00'
+  },
+  close: {
+    type: String,
+    match: /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/,
+    default: '18:00'
+  },
+  closed: {
+    type: Boolean,
+    default: false
+  }
+}, { _id: false });
+
+const openingHoursSchema = new mongoose.Schema({
+  monday: { type: dayScheduleSchema, default: {} },
+  tuesday: { type: dayScheduleSchema, default: {} },
+  wednesday: { type: dayScheduleSchema, default: {} },
+  thursday: { type: dayScheduleSchema, default: {} },
+  friday: { type: dayScheduleSchema, default: {} },
+  saturday: { type: dayScheduleSchema, default: {} },
+  sunday: { type: dayScheduleSchema, default: {} }
+}, { _id: false });
+
+// Main Place schema with enhanced ID handling
 const placeSchema = new mongoose.Schema({
+  // Primary identifier - can be ObjectId or custom string
   id: {
     type: String,
     unique: true,
-    sparse: true,
+    sparse: true, // Allows null/undefined values to be unique
     index: true
   },
+  
+  // URL-friendly slug for easy searching
+  slug: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true,
+    index: true
+  },
+  
+  // Basic information
   name: {
     type: String,
-    required: true,
+    required: [true, 'Place name is required'],
     trim: true,
-    maxLength: 200
+    maxLength: [200, 'Name cannot exceed 200 characters'],
+    index: true
   },
+  
   description: {
     type: String,
-    required: true,
-    trim: true,
-    maxLength: 2000
+    required: [true, 'Description is required'],
+    maxLength: [2000, 'Description cannot exceed 2000 characters']
   },
-  location: {
-    type: locationSchema,
-    required: true
-  },
-  address: {
-    type: String,
-    trim: true,
-    maxLength: 500
-  },
-  city: {
-    type: String,
-    required: true,
-    trim: true,
-    index: true
-  },
-  state: {
-    type: String,
-    required: true,
-    trim: true,
-    index: true
-  },
+  
   category: {
     type: String,
-    required: true,
+    required: [true, 'Category is required'],
     lowercase: true,
-    enum: [
-      'temple',
-      'palace',
-      'hill-station',
-      'heritage',
-      'beach',
-      'wildlife',
-      'nature',
-      'fort',
-      'museum',
-      'park',
-      'cultural',
-      'adventure',
-      'shopping',
-      'restaurant',
-      'accommodation',
-      'transportation'
-    ],
+    enum: {
+      values: [
+        'temple', 'palace', 'fort', 'heritage', 'museum', 'park', 'garden',
+        'beach', 'hill-station', 'waterfall', 'lake', 'wildlife', 'zoo',
+        'shopping', 'market', 'restaurant', 'viewpoint', 'cultural',
+        'adventure', 'entertainment', 'nature', 'religious', 'historical'
+      ],
+      message: 'Invalid category. Please choose from the available options.'
+    },
     index: true
   },
-  openingHours: openingHoursSchema,
+  
+  // Location details
+  location: {
+    type: locationSchema,
+    required: [true, 'Location coordinates are required'],
+    index: '2dsphere' // For geospatial queries
+  },
+  
+  address: {
+    street: String,
+    area: String,
+    city: {
+      type: String,
+      required: [true, 'City is required'],
+      trim: true,
+      index: true
+    },
+    district: String,
+    state: {
+      type: String,
+      required: [true, 'State is required'],
+      trim: true,
+      index: true
+    },
+    pincode: {
+      type: String,
+      match: /^[1-9][0-9]{5}$/
+    },
+    country: {
+      type: String,
+      default: 'India'
+    }
+  },
+  
+  // Visit information
   averageVisitDuration: {
     type: Number,
-    required: true,
-    min: 15,
-    max: 1440, // 24 hours max
+    required: [true, 'Average visit duration is required'],
+    min: [15, 'Visit duration must be at least 15 minutes'],
+    max: [1440, 'Visit duration cannot exceed 24 hours'],
     default: 90
   },
-  entryFee: entryFeeSchema,
-  amenities: [{
-    type: String,
-    trim: true
-  }],
+  
   bestTimeToVisit: [{
     type: String,
-    enum: ['morning', 'afternoon', 'evening', 'night', 'winter', 'summer', 'monsoon', 'year-round']
+    enum: ['early-morning', 'morning', 'afternoon', 'evening', 'night', 'sunset', 'sunrise'],
+    default: ['morning']
   }],
-  kidFriendly: {
-    type: Boolean,
-    default: true
-  },
-  wheelchairAccessible: {
-    type: Boolean,
-    default: false
-  },
-  tags: [{
-    type: String,
-    trim: true,
-    lowercase: true
-  }],
+  
+  // Ratings and reviews
   rating: {
     type: Number,
-    required: true,
-    min: 0,
-    max: 5,
-    default: 3.5
+    min: [1, 'Rating must be between 1 and 5'],
+    max: [5, 'Rating must be between 1 and 5'],
+    default: 3.5,
+    get: v => Math.round(v * 10) / 10 // Round to 1 decimal place
   },
+  
   reviewCount: {
     type: Number,
     default: 0,
     min: 0
   },
-  popularity: {
-    type: Number,
-    default: 0,
-    min: 0
+  
+  // Financial information
+  entryFee: {
+    type: entryFeeSchema,
+    default: () => ({ indian: 0, foreign: 0 })
   },
-  priority: {
-    type: Number,
-    default: 0,
-    min: 0
+  
+  // Timing and availability
+  openingHours: {
+    type: openingHoursSchema,
+    default: () => ({})
   },
+  
+  seasonalInfo: {
+    bestMonths: [{
+      type: String,
+      enum: ['january', 'february', 'march', 'april', 'may', 'june',
+             'july', 'august', 'september', 'october', 'november', 'december']
+    }],
+    avoid: [{
+      type: String,
+      enum: ['january', 'february', 'march', 'april', 'may', 'june',
+             'july', 'august', 'september', 'october', 'november', 'december']
+    }],
+    peakSeason: {
+      start: String,
+      end: String
+    }
+  },
+  
+  // Accessibility and amenities
+  accessibility: {
+    wheelchairAccessible: {
+      type: Boolean,
+      default: false
+    },
+    elevatorAvailable: {
+      type: Boolean,
+      default: false
+    },
+    restrooms: {
+      type: Boolean,
+      default: false
+    },
+    parkingAvailable: {
+      type: Boolean,
+      default: false
+    },
+    guidedToursAvailable: {
+      type: Boolean,
+      default: false
+    }
+  },
+  
+  amenities: [{
+    type: String,
+    enum: [
+      'parking', 'restrooms', 'food-court', 'gift-shop', 'wifi',
+      'audio-guide', 'wheelchair-access', 'elevator', 'air-conditioning',
+      'prayer-hall', 'meditation-area', 'photography-allowed',
+      'security', 'first-aid', 'water-fountain', 'seating-area'
+    ]
+  }],
+  
+  // Family and group information
+  suitableFor: {
+    families: {
+      type: Boolean,
+      default: true
+    },
+    couples: {
+      type: Boolean,
+      default: true
+    },
+    soloTravelers: {
+      type: Boolean,
+      default: true
+    },
+    groups: {
+      type: Boolean,
+      default: true
+    },
+    children: {
+      type: Boolean,
+      default: true
+    },
+    elderly: {
+      type: Boolean,
+      default: true
+    }
+  },
+  
+  kidFriendly: {
+    type: Boolean,
+    default: true
+  },
+  
+  wheelchairAccessible: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Content and media
+  images: [{
+    url: String,
+    caption: String,
+    isPrimary: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  
+  tags: [{
+    type: String,
+    lowercase: true,
+    trim: true,
+    maxLength: 50
+  }],
+  
+  // Administrative fields
   isActive: {
     type: Boolean,
     default: true,
     index: true
   },
-  website: {
-    type: String,
-    trim: true
-  },
-  phone: {
-    type: String,
-    trim: true
-  },
-  email: {
-    type: String,
-    trim: true
-  },
-  images: [{
-    type: String,
-    trim: true
-  }],
-  weatherDependant: {
+  
+  verified: {
     type: Boolean,
     default: false
   },
-  crowdLevel: {
+  
+  lastVerified: Date,
+  
+  // Search and SEO
+  searchKeywords: [{
     type: String,
-    enum: ['low', 'medium', 'high'],
-    default: 'medium'
+    lowercase: true,
+    trim: true
+  }],
+  
+  // Analytics
+  views: {
+    type: Number,
+    default: 0
+  },
+  
+  bookmarks: {
+    type: Number,
+    default: 0
+  },
+  
+  // Data source tracking
+  dataSource: {
+    type: String,
+    enum: ['manual', 'api', 'scraping', 'user-submission', 'bulk-import'],
+    default: 'manual'
+  },
+  
+  externalIds: {
+    googlePlaceId: String,
+    tripadvisorId: String,
+    wikiDataId: String,
+    governmentId: String
+  },
+  
+  // Content moderation
+  moderationStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'needs-review'],
+    default: 'approved'
+  },
+  
+  // Timestamps
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  toJSON: { virtuals: true, getters: true },
+  toObject: { virtuals: true, getters: true }
 });
 
-// Indexes for better performance
-placeSchema.index({ location: '2dsphere' }); // Geospatial index for nearby searches
-placeSchema.index({ category: 1, rating: -1 });
-placeSchema.index({ city: 1, category: 1 });
-placeSchema.index({ state: 1, category: 1 });
-placeSchema.index({ rating: -1 });
-placeSchema.index({ name: 'text', description: 'text', tags: 'text' }); // Text search
+// Indexes for better query performance
+placeSchema.index({ name: 'text', description: 'text', tags: 'text' });
+placeSchema.index({ category: 1, city: 1 });
+placeSchema.index({ rating: -1, reviewCount: -1 });
+placeSchema.index({ 'location': '2dsphere' });
+placeSchema.index({ isActive: 1, category: 1 });
+placeSchema.index({ slug: 1 });
+placeSchema.index({ id: 1 });
+placeSchema.index({ city: 1, state: 1 });
 
-// Virtual for formatted rating
-placeSchema.virtual('formattedRating').get(function() {
-  return this.rating ? this.rating.toFixed(1) : '0.0';
+// Virtual properties
+placeSchema.virtual('fullAddress').get(function() {
+  const parts = [];
+  if (this.address?.street) parts.push(this.address.street);
+  if (this.address?.area) parts.push(this.address.area);
+  if (this.address?.city) parts.push(this.address.city);
+  if (this.address?.state) parts.push(this.address.state);
+  if (this.address?.pincode) parts.push(this.address.pincode);
+  return parts.join(', ');
 });
 
-// Virtual for visit duration in hours
-placeSchema.virtual('visitHours').get(function() {
-  return Math.round(this.averageVisitDuration / 60 * 10) / 10;
+placeSchema.virtual('visitDurationFormatted').get(function() {
+  const duration = this.averageVisitDuration || 0;
+  const hours = Math.floor(duration / 60);
+  const minutes = duration % 60;
+  
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
 });
 
-// Virtual for formatted entry fee
-placeSchema.virtual('formattedEntryFee').get(function() {
-  const fee = this.entryFee?.indian || this.entryFee?.amount || 0;
+placeSchema.virtual('entryFeeFormatted').get(function() {
+  const fee = this.entryFee?.indian || 0;
   return fee === 0 ? 'Free' : `₹${fee}`;
 });
 
-// Static method to find nearby places with distance
-placeSchema.statics.findNearby = async function(latitude, longitude, radius, additionalFilters = {}) {
-  try {
-    const radiusInRadians = radius / 6371; // Earth radius in km
-    
-    const query = {
-      location: {
-        $geoWithin: {
-          $centerSphere: [[longitude, latitude], radiusInRadians]
-        }
-      },
-      isActive: true,
-      ...additionalFilters
-    };
+placeSchema.virtual('coordinates').get(function() {
+  return [this.location.longitude, this.location.latitude]; // GeoJSON format
+});
 
-    const places = await this.find(query).lean();
+placeSchema.virtual('primaryImage').get(function() {
+  const primary = this.images?.find(img => img.isPrimary);
+  return primary?.url || (this.images?.[0]?.url);
+});
 
-    // Calculate distances and add to results
-    const placesWithDistance = places.map(place => {
-      const distance = calculateDistance(
-        latitude, longitude,
-        place.location.latitude, place.location.longitude
-      );
-      
-      return {
-        ...place,
-        distance: Math.round(distance * 100) / 100,
-        distanceFormatted: `${Math.round(distance * 100) / 100} km`
-      };
-    });
+// Instance methods
 
-    // Sort by distance
-    placesWithDistance.sort((a, b) => a.distance - b.distance);
-
-    return placesWithDistance;
-  } catch (error) {
-    console.error('Error in findNearby:', error);
-    return this.find({ isActive: true, ...additionalFilters }).lean();
+// ENHANCED: Find by flexible ID - handles both ObjectId and string IDs
+placeSchema.statics.findByFlexibleId = async function(id) {
+  if (!id) return null;
+  
+  const searches = [];
+  
+  // Try ObjectId if it looks like one
+  if (typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    searches.push(this.findById(id));
   }
+  
+  // Try custom id field
+  searches.push(this.findOne({ id: id, isActive: true }));
+  
+  // Try slug
+  if (typeof id === 'string') {
+    searches.push(this.findOne({ slug: id.toLowerCase(), isActive: true }));
+  }
+  
+  // Execute searches in parallel
+  const results = await Promise.allSettled(searches);
+  
+  // Return first successful result
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      return result.value;
+    }
+  }
+  
+  return null;
 };
 
-// Static method for advanced search
-placeSchema.statics.advancedSearch = async function(criteria) {
+// ENHANCED: Smart search function
+placeSchema.statics.smartSearch = async function(query, options = {}) {
   const {
-    categories = [],
-    cities = [],
-    states = [],
+    category,
+    city,
+    state,
     minRating = 0,
-    maxEntryFee = null,
-    kidFriendly = null,
-    wheelchairAccessible = null,
-    searchText = null,
-    sortBy = 'rating',
-    sortOrder = 'desc',
+    maxDistance,
+    coordinates,
     limit = 50,
-    skip = 0
-  } = criteria;
-
-  let query = { isActive: true };
-
-  // Category filter
-  if (categories.length > 0) {
-    query.category = { $in: categories.map(cat => cat.toLowerCase()) };
-  }
-
-  // Location filters
-  if (cities.length > 0) {
-    query.city = { $in: cities.map(city => new RegExp(city, 'i')) };
+    sortBy = 'rating'
+  } = options;
+  
+  let searchQuery = { isActive: true };
+  
+  // Text search
+  if (query && query.trim()) {
+    const searchTerms = query.trim().split(/\s+/);
+    const regexQueries = searchTerms.map(term => ({
+      $or: [
+        { name: { $regex: new RegExp(term, 'i') } },
+        { description: { $regex: new RegExp(term, 'i') } },
+        { tags: { $regex: new RegExp(term, 'i') } },
+        { 'address.city': { $regex: new RegExp(term, 'i') } },
+        { 'address.area': { $regex: new RegExp(term, 'i') } }
+      ]
+    }));
+    
+    if (regexQueries.length === 1) {
+      searchQuery = { ...searchQuery, ...regexQueries[0] };
+    } else {
+      searchQuery = { ...searchQuery, $and: regexQueries };
+    }
   }
   
-  if (states.length > 0) {
-    query.state = { $in: states.map(state => new RegExp(state, 'i')) };
+  // Category filter
+  if (category) {
+    const categories = Array.isArray(category) ? category : [category];
+    searchQuery.category = { $in: categories.map(cat => cat.toLowerCase()) };
   }
-
+  
+  // Location filters
+  if (city) {
+    searchQuery['address.city'] = { $regex: new RegExp(city, 'i') };
+  }
+  
+  if (state) {
+    searchQuery['address.state'] = { $regex: new RegExp(state, 'i') };
+  }
+  
   // Rating filter
   if (minRating > 0) {
-    query.rating = { $gte: minRating };
-  }
-
-  // Entry fee filter
-  if (maxEntryFee !== null) {
-    query.$or = [
-      { 'entryFee.indian': { $lte: maxEntryFee } },
-      { 'entryFee.amount': { $lte: maxEntryFee } },
-      { 'entryFee.indian': { $exists: false } },
-      { 'entryFee.amount': { $exists: false } }
-    ];
-  }
-
-  // Accessibility filters
-  if (kidFriendly === true) {
-    query.kidFriendly = true;
+    searchQuery.rating = { $gte: minRating };
   }
   
-  if (wheelchairAccessible === true) {
-    query.wheelchairAccessible = true;
+  let queryBuilder = this.find(searchQuery);
+  
+  // Geospatial search
+  if (coordinates && maxDistance) {
+    queryBuilder = this.find({
+      ...searchQuery,
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [coordinates.longitude, coordinates.latitude]
+          },
+          $maxDistance: maxDistance * 1000 // Convert km to meters
+        }
+      }
+    });
   }
-
-  // Text search
-  if (searchText) {
-    query.$text = { $search: searchText };
-  }
-
-  // Build sort criteria
+  
+  // Sorting
   let sortCriteria = {};
   switch (sortBy) {
-    case 'name':
-      sortCriteria.name = sortOrder === 'asc' ? 1 : -1;
-      break;
     case 'rating':
-      sortCriteria.rating = sortOrder === 'asc' ? 1 : -1;
-      sortCriteria.reviewCount = -1; // Secondary sort
+      sortCriteria = { rating: -1, reviewCount: -1, name: 1 };
+      break;
+    case 'name':
+      sortCriteria = { name: 1 };
+      break;
+    case 'distance':
+      // Distance sorting is handled by $near
       break;
     case 'popularity':
-      sortCriteria.popularity = sortOrder === 'asc' ? 1 : -1;
-      break;
-    case 'city':
-      sortCriteria.city = sortOrder === 'asc' ? 1 : -1;
-      sortCriteria.name = 1;
-      break;
-    case 'category':
-      sortCriteria.category = sortOrder === 'asc' ? 1 : -1;
-      sortCriteria.rating = -1;
+      sortCriteria = { views: -1, bookmarks: -1, rating: -1 };
       break;
     default:
-      sortCriteria = { rating: -1, reviewCount: -1 };
+      sortCriteria = { rating: -1, name: 1 };
   }
-
-  return this.find(query)
+  
+  return queryBuilder
     .sort(sortCriteria)
-    .skip(skip)
-    .limit(limit)
+    .limit(Math.min(limit, 100))
     .lean();
 };
 
-// Instance method to check if place is open
-placeSchema.methods.isOpenAt = function(dayOfWeek, timeString) {
-  if (!this.openingHours) return true;
-
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayName = dayNames[dayOfWeek];
-  const schedule = this.openingHours[dayName];
-
-  if (!schedule || schedule.closed) return false;
-  if (!schedule.open || !schedule.close) return true;
-
-  const currentTime = timeToMinutes(timeString);
-  const openTime = timeToMinutes(schedule.open);
-  const closeTime = timeToMinutes(schedule.close);
-
-  if (closeTime > openTime) {
-    return currentTime >= openTime && currentTime <= closeTime;
-  } else {
-    // Handle overnight hours
-    return currentTime >= openTime || currentTime <= closeTime;
+// Find nearby places with enhanced error handling
+placeSchema.statics.findNearby = async function(lat, lng, radiusKm = 25, additionalFilters = {}) {
+  try {
+    // Validate coordinates
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      throw new Error('Invalid coordinates provided');
+    }
+    
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      throw new Error('Coordinates out of valid range');
+    }
+    
+    const query = {
+      ...additionalFilters,
+      isActive: true,
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [lng, lat] // GeoJSON format: [longitude, latitude]
+          },
+          $maxDistance: radiusKm * 1000 // Convert km to meters
+        }
+      }
+    };
+    
+    return await this.find(query)
+      .limit(50)
+      .lean();
+      
+  } catch (error) {
+    console.error('Error in findNearby:', error);
+    
+    // Fallback to basic distance calculation
+    const allPlaces = await this.find({
+      ...additionalFilters,
+      isActive: true
+    }).lean();
+    
+    return allPlaces.filter(place => {
+      if (!place.location) return false;
+      const distance = this.calculateDistance(lat, lng, place.location.latitude, place.location.longitude);
+      return distance <= radiusKm;
+    }).slice(0, 50);
   }
 };
 
-// Pre-save middleware
-placeSchema.pre('save', function(next) {
-  // Generate ID if not provided
-  if (!this.id) {
-    this.id = this.name.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .replace(/\s+/g, '-')
-      .substring(0, 50);
-  }
-
-  // Ensure required fields have defaults
-  if (!this.rating) this.rating = 3.5;
-  if (!this.averageVisitDuration) this.averageVisitDuration = 90;
-  if (!this.entryFee) this.entryFee = { indian: 0, foreign: 0 };
-
-  next();
-});
-
-// Helper function to calculate distance
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
+// Calculate distance between two points (Haversine formula)
+placeSchema.statics.calculateDistance = function(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in kilometers
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   
@@ -439,14 +628,142 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
             Math.sin(dLon/2) * Math.sin(dLon/2);
   
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
+  return R * c; // Distance in kilometers
+};
 
-// Helper function to convert time to minutes
-function timeToMinutes(timeStr) {
-  if (!timeStr) return 0;
+// Check if place is currently open
+placeSchema.methods.isCurrentlyOpen = function(date = new Date()) {
+  if (!this.openingHours) return true; // Assume open if no schedule
+  
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayName = dayNames[date.getDay()];
+  const schedule = this.openingHours[dayName];
+  
+  if (!schedule || schedule.closed) return false;
+  if (!schedule.open || !schedule.close) return true;
+  
+  const now = date.getHours() * 60 + date.getMinutes();
+  const openTime = this.timeToMinutes(schedule.open);
+  const closeTime = this.timeToMinutes(schedule.close);
+  
+  // Handle overnight hours
+  if (closeTime < openTime) {
+    return now >= openTime || now <= closeTime;
+  }
+  
+  return now >= openTime && now <= closeTime;
+};
+
+// Get next opening time
+placeSchema.methods.getNextOpenTime = function(fromDate = new Date()) {
+  if (!this.openingHours) return null;
+  
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  
+  for (let i = 0; i < 7; i++) {
+    const checkDate = new Date(fromDate);
+    checkDate.setDate(fromDate.getDate() + i);
+    
+    const dayName = dayNames[checkDate.getDay()];
+    const schedule = this.openingHours[dayName];
+    
+    if (schedule && !schedule.closed && schedule.open) {
+      const openTime = this.timeToMinutes(schedule.open);
+      const currentTime = checkDate.getHours() * 60 + checkDate.getMinutes();
+      
+      // If it's today and place opens later
+      if (i === 0 && openTime > currentTime) {
+        return {
+          date: checkDate.toDateString(),
+          time: schedule.open,
+          daysFromNow: 0
+        };
+      }
+      
+      // If it's a future day
+      if (i > 0) {
+        return {
+          date: checkDate.toDateString(),
+          time: schedule.open,
+          daysFromNow: i
+        };
+      }
+    }
+  }
+  
+  return null; // Always closed
+};
+
+// Helper method to convert time string to minutes
+placeSchema.methods.timeToMinutes = function(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return 0;
   const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + (minutes || 0);
-}
+  return (hours * 60) + (minutes || 0);
+};
 
-module.exports = mongoose.model('Place', placeSchema);
+// Update view count
+placeSchema.methods.incrementViews = function() {
+  this.views = (this.views || 0) + 1;
+  return this.save();
+};
+
+// Pre-save middleware
+placeSchema.pre('save', function(next) {
+  // Generate slug if not provided
+  if (!this.slug && this.name) {
+    this.slug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .trim();
+  }
+  
+  // Generate search keywords
+  if (this.isModified('name') || this.isModified('description') || this.isModified('tags')) {
+    const keywords = new Set();
+    
+    // Add name words
+    if (this.name) {
+      this.name.toLowerCase().split(/\s+/).forEach(word => {
+        if (word.length > 2) keywords.add(word);
+      });
+    }
+    
+    // Add city and state
+    if (this.address?.city) keywords.add(this.address.city.toLowerCase());
+    if (this.address?.state) keywords.add(this.address.state.toLowerCase());
+    
+    // Add category
+    if (this.category) keywords.add(this.category);
+    
+    // Add tags
+    if (this.tags) {
+      this.tags.forEach(tag => keywords.add(tag.toLowerCase()));
+    }
+    
+    this.searchKeywords = Array.from(keywords);
+  }
+  
+  // Update timestamp
+  this.updatedAt = new Date();
+  
+  next();
+});
+
+// Pre-update middleware
+placeSchema.pre(['updateOne', 'findOneAndUpdate'], function(next) {
+  this.set({ updatedAt: new Date() });
+  next();
+});
+
+// Post-save middleware for logging
+placeSchema.post('save', function(doc, next) {
+  console.log(`Place saved: ${doc.name} (${doc._id})`);
+  next();
+});
+
+// Export model
+const Place = mongoose.model('Place', placeSchema);
+
+module.exports = Place;

@@ -1,559 +1,424 @@
-// backend/routes/trips.js - ENHANCED WITH DETAILED PLAN GENERATION
+// backend/routes/tripRoutes.js - FIXED ROUTING AND ENHANCED ERROR HANDLING
 
 const express = require('express');
-const { 
-  optimizeTripWithAI, 
-  getTripSuggestions, 
-  analyzeExistingTrip,
-  addRequestTiming 
-} = require('../controllers/tripController');
-
-// Import the new detailed trip controller
-const detailedTripController = require('../controllers/detailedTripController');
-
 const router = express.Router();
 
-// Apply timing middleware to all routes
+// Import controllers
+const {
+  optimizeTripWithAI,
+  getTripSuggestions,
+  analyzeExistingTrip,
+  addRequestTiming
+} = require('../controllers/tripController');
+
+const detailedTripController = require('../controllers/detailedTripController');
+const distanceController = require('../controllers/distanceController');
+const mapController = require('../controllers/mapController');
+
+// Middleware for request timing and logging
 router.use(addRequestTiming);
 
-// MAIN ENDPOINTS: Gemini AI + Algorithm Optimization
-router.post('/optimize', optimizeTripWithAI);
-router.post('/generate', optimizeTripWithAI);
-router.post('/ai-optimize', optimizeTripWithAI);
+// Enhanced middleware for request validation and logging
+router.use((req, res, next) => {
+  console.log(`🌐 ${req.method} ${req.path} - ${new Date().toISOString()}`);
+  if (req.method !== 'GET') {
+    console.log('📊 Request body size:', JSON.stringify(req.body).length);
+    console.log('📍 Places count:', req.body?.places?.length || 0);
+  }
+  console.log('🔍 Query params:', JSON.stringify(req.query, null, 2));
+  next();
+});
 
-// NEW ENDPOINT: Generate detailed trip plan using Gemini AI
-router.post('/generate-detailed-plan', detailedTripController.generateDetailedPlan);
+// Enhanced error handling middleware
+const handleAsyncErrors = (fn) => {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch((error) => {
+      console.error('💥 Route error:', {
+        path: req.path,
+        method: req.method,
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+      
+      // Specific error handling
+      if (error.name === 'ValidationError') {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: Object.values(error.errors).map(err => err.message),
+          type: 'VALIDATION_ERROR'
+        });
+      }
+      
+      if (error.name === 'CastError') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid ID format',
+          type: 'CAST_ERROR'
+        });
+      }
+      
+      if (error.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: 'Duplicate entry found',
+          type: 'DUPLICATE_ERROR'
+        });
+      }
 
-// ENHANCED ENDPOINT: Complete trip planning (optimization + detailed plan)
-router.post('/create-complete-trip', async (req, res) => {
-  try {
-    console.log('🎯 Creating complete trip with optimization and detailed plan...');
-    
-    const { places, preferences, constraints } = req.body;
-
-    // Input validation
-    if (!places || !Array.isArray(places) || places.length < 2) {
-      return res.status(400).json({
+      if (error.message.includes('Gemini') || error.message.includes('AI')) {
+        return res.status(503).json({
+          success: false,
+          message: 'AI service temporarily unavailable',
+          type: 'AI_SERVICE_ERROR',
+          fallbackAvailable: true
+        });
+      }
+      
+      // Generic error response
+      res.status(500).json({
         success: false,
-        message: 'At least 2 places required for trip creation'
+        message: 'Internal server error',
+        type: 'INTERNAL_ERROR',
+        error: process.env.NODE_ENV === 'development' ? {
+          message: error.message,
+          stack: error.stack
+        } : undefined
       });
-    }
-
-    // Step 1: Optimize the route
-    console.log('🔄 Step 1: Optimizing route...');
-    req.body.places = places;
-    req.body.preferences = preferences || {};
-    req.body.constraints = constraints || {};
-
-    // Call the optimization function
-    const optimizationResult = await new Promise((resolve, reject) => {
-      const mockRes = {
-        status: (code) => ({
-          json: (data) => {
-            if (data.success) {
-              resolve(data);
-            } else {
-              reject(new Error(data.message || 'Optimization failed'));
-            }
-          }
-        })
-      };
-
-      optimizeTripWithAI(req, mockRes);
     });
+  };
+};
 
-    if (!optimizationResult.success || !optimizationResult.route) {
-      throw new Error('Route optimization failed');
-    }
+// MAIN ROUTES
 
-    // Step 2: Generate detailed plan
-    console.log('🔄 Step 2: Generating detailed plan...');
-    const detailedPlanPayload = {
-      places: optimizationResult.route,
-      preferences: preferences || {},
-      routeMetrics: optimizationResult.metrics || {},
-      algorithm: optimizationResult.algorithm || 'unknown'
-    };
-
-    let detailedPlan = null;
-    try {
-      const planResult = await detailedTripController.generateDetailedPlan({
-        body: detailedPlanPayload
-      }, {
-        status: (code) => ({
-          json: (data) => data
-        })
-      });
-
-      if (planResult.success) {
-        detailedPlan = planResult.data;
-      }
-    } catch (planError) {
-      console.warn('⚠️ Detailed plan generation failed, continuing with optimization only:', planError.message);
-    }
-
-    // Step 3: Combine results
-    const completeTrip = {
-      success: true,
-      optimizedRoute: {
-        route: optimizationResult.route,
-        algorithm: optimizationResult.algorithm,
-        metrics: optimizationResult.metrics,
-        aiInsights: optimizationResult.aiInsights,
-        efficiency: optimizationResult.efficiency
-      },
-      detailedPlan: detailedPlan,
-      completeTripGenerated: !!detailedPlan,
-      generatedAt: new Date().toISOString(),
-      processingSteps: [
-        { step: 'route_optimization', status: 'completed', algorithm: optimizationResult.algorithm },
-        { step: 'detailed_plan_generation', status: detailedPlan ? 'completed' : 'failed', aiModel: detailedPlan ? 'gemini-1.5-flash' : null }
-      ]
-    };
-
-    console.log('✅ Complete trip creation finished:', {
-      routeOptimized: true,
-      detailedPlanGenerated: !!detailedPlan,
-      placesCount: optimizationResult.route?.length || 0
-    });
-
-    res.status(200).json(completeTrip);
-
-  } catch (error) {
-    console.error('💥 Complete trip creation failed:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create complete trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
-      errorType: 'COMPLETE_TRIP_ERROR'
-    });
-  }
-});
-
-// Trip suggestions endpoint
-router.get('/suggestions', getTripSuggestions);
-
-// Trip analysis endpoint
-router.post('/analyze', analyzeExistingTrip);
-
-// ENHANCED ENDPOINT: Get trip templates with detailed information
-router.get('/templates', async (req, res) => {
-  try {
-    const { category, duration, difficulty } = req.query;
-    
-    // This would typically come from a database
-    const templates = [
-      {
-        id: 'cultural-heritage-3day',
-        name: 'South India Cultural Heritage',
-        description: 'Explore ancient temples, majestic palaces, and UNESCO World Heritage sites',
-        category: 'cultural',
-        duration: '3 days',
-        difficulty: 'moderate',
-        placesCount: 8,
-        estimatedCost: 15000,
-        highlights: ['Ancient temples', 'Royal palaces', 'UNESCO sites', 'Traditional crafts'],
-        bestSeason: 'October to March',
-        includes: {
-          accommodation: true,
-          meals: true,
-          guide: true,
-          transport: true
-        },
-        samplePlaces: [
-          'Meenakshi Amman Temple',
-          'Mysore Palace',
-          'Hampi',
-          'Thanjavur Brihadeeswarar Temple'
-        ]
-      },
-      {
-        id: 'nature-adventure-2day',
-        name: 'Western Ghats Nature Trail',
-        description: 'Breathtaking hill stations, wildlife sanctuaries, and scenic landscapes',
-        category: 'nature',
-        duration: '2 days',
-        difficulty: 'easy',
-        placesCount: 6,
-        estimatedCost: 8000,
-        highlights: ['Hill stations', 'Wildlife spotting', 'Tea plantations', 'Waterfalls'],
-        bestSeason: 'September to February',
-        includes: {
-          accommodation: true,
-          meals: false,
-          guide: false,
-          transport: true
-        },
-        samplePlaces: [
-          'Ooty',
-          'Kodaikanal',
-          'Periyar Wildlife Sanctuary',
-          'Athirapally Waterfalls'
-        ]
-      },
-      {
-        id: 'spiritual-journey-4day',
-        name: 'Sacred South India Pilgrimage',
-        description: 'Visit the most revered temples and spiritual centers of South India',
-        category: 'spiritual',
-        duration: '4 days',
-        difficulty: 'moderate',
-        placesCount: 10,
-        estimatedCost: 12000,
-        highlights: ['Ancient temples', 'Spiritual practices', 'Religious festivals', 'Sacred rivers'],
-        bestSeason: 'November to February',
-        includes: {
-          accommodation: true,
-          meals: true,
-          guide: true,
-          transport: true
-        },
-        samplePlaces: [
-          'Rameswaram Temple',
-          'Madurai Meenakshi Temple',
-          'Tirumala Tirupati',
-          'Srirangam Temple'
-        ]
-      }
-    ];
-
-    // Filter templates based on query parameters
-    let filteredTemplates = templates;
-    
-    if (category) {
-      filteredTemplates = filteredTemplates.filter(t => t.category === category.toLowerCase());
-    }
-    
-    if (duration) {
-      filteredTemplates = filteredTemplates.filter(t => t.duration.includes(duration));
-    }
-    
-    if (difficulty) {
-      filteredTemplates = filteredTemplates.filter(t => t.difficulty === difficulty.toLowerCase());
-    }
-
-    res.status(200).json({
-      success: true,
-      count: filteredTemplates.length,
-      data: filteredTemplates,
-      filters: { category, duration, difficulty }
-    });
-
-  } catch (error) {
-    console.error('Error fetching trip templates:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch trip templates',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-});
-
-// ENHANCED ENDPOINT: Real-time trip progress tracking
-router.post('/start-trip/:tripId', async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    const { startTime, currentLocation } = req.body;
-
-    // This would typically update a database record
-    const tripProgress = {
-      tripId,
-      status: 'active',
-      startedAt: startTime || new Date().toISOString(),
-      currentLocation: currentLocation || null,
-      visitedPlaces: [],
-      currentPlaceIndex: 0,
-      estimatedCompletion: null,
-      realTimeUpdates: true
-    };
-
-    console.log(`🚀 Trip ${tripId} started at ${tripProgress.startedAt}`);
-
-    res.status(200).json({
-      success: true,
-      message: 'Trip started successfully',
-      data: tripProgress
-    });
-
-  } catch (error) {
-    console.error('Error starting trip:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to start trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-});
-
-// ENDPOINT: Update trip progress (for real-time tracking)
-router.post('/update-progress/:tripId', async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    const { visitedPlaces, currentPlaceIndex, currentLocation, notes } = req.body;
-
-    // This would typically update a database record
-    const updatedProgress = {
-      tripId,
-      visitedPlaces: visitedPlaces || [],
-      currentPlaceIndex: currentPlaceIndex || 0,
-      currentLocation: currentLocation || null,
-      notes: notes || [],
-      updatedAt: new Date().toISOString(),
-      progressPercentage: Math.round((visitedPlaces?.length || 0) / 10 * 100) // Assuming 10 places total
-    };
-
-    console.log(`📍 Trip ${tripId} progress updated: ${updatedProgress.progressPercentage}% complete`);
-
-    res.status(200).json({
-      success: true,
-      message: 'Trip progress updated',
-      data: updatedProgress
-    });
-
-  } catch (error) {
-    console.error('Error updating trip progress:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update trip progress',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-});
-
-// ENDPOINT: Complete trip
-router.post('/complete-trip/:tripId', async (req, res) => {
-  try {
-    const { tripId } = req.params;
-    const { rating, feedback, highlights, photos } = req.body;
-
-    const completedTrip = {
-      tripId,
-      status: 'completed',
-      completedAt: new Date().toISOString(),
-      userFeedback: {
-        rating: rating || null,
-        feedback: feedback || '',
-        highlights: highlights || [],
-        photos: photos || []
-      },
-      success: true
-    };
-
-    console.log(`✅ Trip ${tripId} completed with rating: ${rating}/5`);
-
-    res.status(200).json({
-      success: true,
-      message: 'Trip completed successfully',
-      data: completedTrip
-    });
-
-  } catch (error) {
-    console.error('Error completing trip:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to complete trip',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-});
-
-// Algorithm support and capabilities endpoint
-router.get('/algorithm-support', (req, res) => {
-  res.json({
-    success: true,
-    supported: true,
-    algorithms: [
-      {
-        name: 'advancedGreedy',
-        displayName: 'Advanced Greedy',
-        description: 'Multi-criteria optimization with balanced scoring',
-        complexity: 'O(n²)',
-        maxPlaces: 15,
-        recommended: true,
-        features: ['Fast execution', 'Good results', 'Multi-criteria scoring']
-      },
-      {
-        name: 'genetic',
-        displayName: 'Genetic Algorithm',
-        description: 'Evolutionary approach for complex optimization',
-        complexity: 'O(g×p×n)',
-        maxPlaces: 20,
-        recommended: false,
-        features: ['Global optimization', 'Handles constraints', 'High quality results']
-      },
-      {
-        name: 'nearestNeighbor',
-        displayName: 'Nearest Neighbor',
-        description: 'Simple and fast distance-based optimization',
-        complexity: 'O(n²)',
-        maxPlaces: 25,
-        recommended: false,
-        features: ['Very fast', 'Simple logic', 'Distance-based']
-      }
-    ],
-    features: {
-      geminiAI: true,
-      multiCriteria: true,
-      coimbatoreOptimized: true,
-      realTimeTracking: true,
-      detailedPlans: true,
-      culturalInsights: true
-    },
-    limits: {
-      maxPlaces: 20,
-      maxTimeHours: 24,
-      minTimeHours: 2
-    }
-  });
-});
-
-// Available algorithms endpoint (detailed information)
-router.get('/algorithms', (req, res) => {
-  const OptimizationAlgorithms = require('../utils/optimizationAlgorithms');
-  const optimizer = new OptimizationAlgorithms();
+// 1. ENHANCED AI + ALGORITHM OPTIMIZATION
+router.post('/optimize-with-algorithm', handleAsyncErrors(async (req, res) => {
+  console.log('🚀 Starting enhanced AI + Algorithm optimization...');
   
-  res.json({
+  // Enhanced input validation
+  const { places, preferences = {}, constraints = {} } = req.body;
+  
+  if (!places || !Array.isArray(places) || places.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'At least one place is required',
+      type: 'VALIDATION_ERROR'
+    });
+  }
+  
+  if (places.length > 25) {
+    return res.status(400).json({
+      success: false,
+      message: 'Maximum 25 places allowed',
+      type: 'VALIDATION_ERROR'
+    });
+  }
+  
+  // Call the enhanced controller
+  return optimizeTripWithAI(req, res);
+}));
+
+// 2. FIXED: PERSONALIZED DETAILED TRIP PLANNING (Multiple endpoints for compatibility)
+router.post('/generate-detailed-plan', handleAsyncErrors(async (req, res) => {
+  console.log('📋 Starting detailed trip planning via /generate-detailed-plan...');
+  return detailedTripController.generateDetailedPlan(req, res);
+}));
+
+router.post('/detailed-plan', handleAsyncErrors(async (req, res) => {
+  console.log('📋 Starting detailed trip planning via /detailed-plan...');
+  return detailedTripController.generateDetailedPlan(req, res);
+}));
+
+// 3. AI TRIP SUGGESTIONS
+router.get('/suggestions', handleAsyncErrors(async (req, res) => {
+  console.log('💡 Generating AI trip suggestions...');
+  
+  // Validate query parameters
+  const { timeAvailable, groupSize } = req.query;
+  
+  if (timeAvailable && (isNaN(timeAvailable) || parseInt(timeAvailable) < 60)) {
+    return res.status(400).json({
+      success: false,
+      message: 'timeAvailable must be a number >= 60 minutes',
+      type: 'VALIDATION_ERROR'
+    });
+  }
+  
+  if (groupSize && (isNaN(groupSize) || parseInt(groupSize) < 1)) {
+    return res.status(400).json({
+      success: false,
+      message: 'groupSize must be a number >= 1',
+      type: 'VALIDATION_ERROR'
+    });
+  }
+  
+  return getTripSuggestions(req, res);
+}));
+
+// 4. ANALYZE EXISTING TRIP
+router.post('/analyze', handleAsyncErrors(async (req, res) => {
+  console.log('🔍 Analyzing existing trip...');
+  
+  const { places } = req.body;
+  
+  if (!places || !Array.isArray(places) || places.length < 2) {
+    return res.status(400).json({
+      success: false,
+      message: 'At least 2 places are required for analysis',
+      type: 'VALIDATION_ERROR'
+    });
+  }
+  
+  return analyzeExistingTrip(req, res);
+}));
+
+// DISTANCE AND ROUTE CALCULATION ROUTES
+
+// 5. CALCULATE DISTANCE BETWEEN PLACES
+router.post('/distance', handleAsyncErrors(distanceController.calculateDistance));
+
+// 6. CALCULATE DISTANCE MATRIX
+router.post('/distance-matrix', handleAsyncErrors(distanceController.calculateMatrix));
+
+// 7. OPTIMIZE ROUTE ORDER
+router.post('/optimize-route', handleAsyncErrors(distanceController.findOptimalRoute));
+
+// 8. GET DISTANCE STATISTICS
+router.post('/distance-stats', handleAsyncErrors(distanceController.getDistanceStatistics));
+
+// 9. CLUSTER PLACES BY PROXIMITY
+router.post('/cluster-places', handleAsyncErrors(distanceController.clusterPlaces));
+
+// 10. ESTIMATE TRAVEL COST
+router.get('/travel-cost', handleAsyncErrors(distanceController.estimateTravelCost));
+
+// MAP AND VISUALIZATION ROUTES
+
+// 11. GET MAP BOUNDS FOR PLACES
+router.get('/map/bounds', handleAsyncErrors(mapController.getMapBounds));
+
+// 12. GET PLACES WITHIN MAP BOUNDS
+router.get('/map/places-in-bounds', handleAsyncErrors(mapController.getPlacesInBounds));
+
+// 13. GET OPTIMIZED ROUTE FOR MAP
+router.post('/map/optimized-route', handleAsyncErrors(mapController.getOptimizedRoute));
+
+// 14. GET CLUSTERED MARKERS FOR MAP
+router.get('/map/clustered-markers', handleAsyncErrors(mapController.getClusteredMarkers));
+
+// 15. GET HEATMAP DATA
+router.get('/map/heatmap', handleAsyncErrors(mapController.getHeatmapData));
+
+// UTILITY AND DEBUG ROUTES
+
+// 16. GET CACHE STATISTICS
+router.get('/cache-stats', handleAsyncErrors(distanceController.getCacheStats));
+
+// 17. CLEAR CACHE
+router.delete('/cache', handleAsyncErrors(distanceController.clearCache));
+
+// 18. HEALTH CHECK
+router.get('/health', handleAsyncErrors(async (req, res) => {
+  const Place = require('../models/Place');
+  
+  try {
+    // Test database connection
+    const placeCount = await Place.countDocuments({ isActive: true });
+    
+    res.status(200).json({
+      success: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      data: {
+        activePlaces: placeCount,
+        apiVersion: '2.0',
+        features: {
+          aiOptimization: !!process.env.GEMINI_API_KEY,
+          distanceCalculation: true,
+          mapVisualization: true,
+          realTimePlanning: true,
+          detailedPlanGeneration: true
+        },
+        endpoints: {
+          detailedPlan: [
+            '/api/trips/generate-detailed-plan',
+            '/api/trips/detailed-plan'
+          ]
+        }
+      }
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      status: 'unhealthy',
+      message: 'Database connection failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+}));
+
+// 19. GET API INFORMATION
+router.get('/info', (req, res) => {
+  res.status(200).json({
     success: true,
-    algorithms: optimizer.getAvailableAlgorithms(),
-    aiIntegration: {
-      geminiAI: !!process.env.GEMINI_API_KEY,
-      fallbackAvailable: true,
-      enhancedInsights: true
+    data: {
+      apiName: 'TouristAI Trip Optimization API',
+      version: '2.0',
+      description: 'AI-powered trip optimization for South Indian tourism',
+      features: [
+        'AI-powered route optimization using Gemini',
+        'Multiple optimization algorithms (Genetic, Greedy, etc.)',
+        'Real-time distance calculation',
+        'Interactive map integration',
+        'Personalized trip planning',
+        'Cultural insights and recommendations'
+      ],
+      endpoints: {
+        optimization: [
+          'POST /api/trips/optimize-with-algorithm - Main AI optimization',
+          'POST /api/trips/generate-detailed-plan - Detailed personalized planning (PRIMARY)',
+          'POST /api/trips/detailed-plan - Detailed personalized planning (ALTERNATIVE)'
+        ],
+        suggestions: [
+          'GET /api/trips/suggestions - AI trip suggestions',
+          'POST /api/trips/analyze - Analyze existing trips'
+        ],
+        distance: [
+          'POST /api/trips/distance - Calculate distances',
+          'POST /api/trips/distance-matrix - Distance matrix',
+          'POST /api/trips/optimize-route - Route optimization'
+        ],
+        map: [
+          'GET /api/trips/map/bounds - Map bounds',
+          'GET /api/trips/map/places-in-bounds - Places in viewport',
+          'POST /api/trips/map/optimized-route - Map route'
+        ],
+        utility: [
+          'GET /api/trips/health - Health check',
+          'GET /api/trips/info - API information'
+        ]
+      },
+      limits: {
+        maxPlaces: 25,
+        maxMatrixSize: 15,
+        requestTimeout: '30s'
+      }
     }
   });
 });
 
-// Route metrics and analytics endpoint
-router.get('/metrics/:routeId', async (req, res) => {
+// DEBUG ENDPOINT - Test detailed plan generation
+router.post('/test-detailed-plan', handleAsyncErrors(async (req, res) => {
+  console.log('🧪 Testing detailed plan generation...');
+  
   try {
-    const { routeId } = req.params;
-    
-    // This would typically fetch from database
-    const metrics = {
-      routeId,
-      analytics: {
-        optimizationTime: '2.3s',
-        placesAnalyzed: 15,
-        placesSelected: 8,
-        efficiency: '87.5%',
-        userSatisfaction: 4.6,
-        completionRate: '94%'
+    // Test payload
+    const testPayload = {
+      places: [
+        {
+          id: 'test_place_1',
+          name: 'Test Temple',
+          category: 'temple',
+          city: 'Coimbatore',
+          state: 'Tamil Nadu',
+          rating: 4.5,
+          averageVisitDuration: 120,
+          location: { latitude: 11.0168, longitude: 76.9558 },
+          entryFee: { indian: 0 }
+        }
+      ],
+      preferences: {
+        startTime: '09:00',
+        totalTimeAvailable: 480,
+        optimizationLevel: 'balanced'
       },
-      performance: {
-        algorithmUsed: 'advancedGreedy',
-        executionTime: 2300, // milliseconds
-        memoryUsage: '45MB',
-        apiCalls: 12
+      routeMetrics: {
+        totalDistance: 50,
+        efficiency: 85
       },
-      userEngagement: {
-        viewsCount: 156,
-        sharesCount: 23,
-        savesCount: 78,
-        ratingsCount: 45
-      }
+      algorithm: 'test-algorithm'
     };
 
-    res.json({
-      success: true,
-      data: metrics
-    });
-
+    // Simulate the detailed plan generation
+    req.body = testPayload;
+    return detailedTripController.generateDetailedPlan(req, res);
+    
   } catch (error) {
-    console.error('Error fetching route metrics:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch route metrics',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: 'Test failed',
+      error: error.message
     });
   }
-});
+}));
 
-// Health check and status endpoint
-router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    status: 'healthy',
-    services: {
-      optimization: 'operational',
-      geminiAI: process.env.GEMINI_API_KEY ? 'operational' : 'disabled',
-      database: 'operational',
-      caching: 'operational'
-    },
-    version: '2.1.0',
-    features: {
-      routeOptimization: true,
-      detailedPlans: true,
-      realTimeTracking: true,
-      aiInsights: !!process.env.GEMINI_API_KEY
-    },
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Test endpoint for development
-router.get('/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Enhanced trip planning with Gemini AI + Algorithms is ready',
-    endpoints: {
-      optimization: 'POST /api/trips/optimize',
-      detailedPlan: 'POST /api/trips/generate-detailed-plan',
-      completeTrip: 'POST /api/trips/create-complete-trip',
-      templates: 'GET /api/trips/templates',
-      startTrip: 'POST /api/trips/start-trip/:id',
-      updateProgress: 'POST /api/trips/update-progress/:id',
-      completeTrip: 'POST /api/trips/complete-trip/:id'
-    },
-    features: [
-      'Gemini AI trip analysis and insights',
-      'Advanced optimization algorithms (Greedy, Genetic, Nearest Neighbor)',
-      'Intelligent algorithm selection based on trip parameters',
-      'Comprehensive detailed itinerary generation',
-      'Cultural insights and local recommendations',
-      'Real-time trip progress tracking',
-      'Trip templates for quick planning',
-      'Budget estimation and breakdown',
-      'Seasonal recommendations and tips',
-      'Coimbatore Tidal Park fixed start location'
+// ENHANCED ERROR HANDLING FOR UNMATCHED ROUTES
+router.use('*', (req, res) => {
+  console.log(`❌ Route not found: ${req.method} ${req.originalUrl}`);
+  
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.method} ${req.originalUrl} not found`,
+    type: 'ROUTE_NOT_FOUND',
+    suggestion: req.originalUrl.includes('generate-detailed-plan') 
+      ? 'Endpoint exists at /api/trips/generate-detailed-plan - check backend server status'
+      : 'Check available endpoints below',
+    availableEndpoints: [
+      'POST /optimize-with-algorithm',
+      'POST /generate-detailed-plan (PRIMARY)',
+      'POST /detailed-plan (ALTERNATIVE)', 
+      'GET /suggestions',
+      'POST /analyze',
+      'POST /distance',
+      'GET /health',
+      'GET /info',
+      'POST /test-detailed-plan (DEBUG)'
     ],
-    integrations: {
-      ai: 'Google Gemini 1.5 Flash',
-      maps: 'Google Maps Distance Matrix API',
-      database: 'MongoDB with Place schema',
-      optimization: 'Custom multi-algorithm engine'
-    }
+    backendStatus: 'Check if backend server is running on correct port'
   });
 });
 
-// Error handling middleware
+// Global error handler for the router
 router.use((error, req, res, next) => {
-  console.error('Trip routes error:', error);
-
-  // Handle specific error types
-  if (error.message && error.message.includes('Gemini')) {
-    return res.status(503).json({
-      success: false,
-      message: 'AI service temporarily unavailable',
-      fallback: 'Basic trip planning is still available',
-      errorType: 'AI_SERVICE_ERROR'
-    });
-  }
-
-  if (error.message && error.message.includes('optimization')) {
-    return res.status(422).json({
-      success: false,
-      message: 'Route optimization failed',
-      suggestion: 'Try reducing the number of places or adjusting constraints',
-      errorType: 'OPTIMIZATION_ERROR'
-    });
-  }
-
+  console.error('🚨 Router global error:', {
+    path: req.path,
+    method: req.method,
+    error: error.message,
+    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  });
+  
   res.status(500).json({
     success: false,
-    message: 'Trip planning service error',
-    error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
-    errorType: 'INTERNAL_ERROR'
+    message: 'Unexpected server error',
+    type: 'ROUTER_ERROR',
+    timestamp: new Date().toISOString(),
+    requestId: req.headers['x-request-id'] || 'unknown',
+    path: req.path,
+    method: req.method,
+    error: process.env.NODE_ENV === 'development' ? {
+      message: error.message,
+      stack: error.stack
+    } : undefined
   });
 });
 
 module.exports = router;
+
+// Export route information for documentation
+module.exports.routeInfo = {
+  prefix: '/api/trips',
+  version: '2.0',
+  totalRoutes: 20,
+  categories: {
+    optimization: 2,
+    detailedPlanning: 2, // Both endpoints
+    suggestions: 2,
+    distance: 6,
+    map: 5,
+    utility: 3
+  },
+  detailedPlanEndpoints: [
+    '/api/trips/generate-detailed-plan',
+    '/api/trips/detailed-plan'
+  ]
+};

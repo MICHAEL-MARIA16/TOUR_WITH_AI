@@ -1,4 +1,4 @@
-// backend/utils/distanceCalculator.js
+// backend/utils/distanceCalculator.js - FIXED VERSION
 
 class DistanceCalculator {
   constructor() {
@@ -10,6 +10,13 @@ class DistanceCalculator {
    * Calculate straight-line distance between two coordinates using Haversine formula
    */
   calculateDistance(lat1, lng1, lat2, lng2) {
+    // Validate inputs
+    if (typeof lat1 !== 'number' || typeof lng1 !== 'number' || 
+        typeof lat2 !== 'number' || typeof lng2 !== 'number') {
+      console.warn('Invalid coordinates in calculateDistance:', { lat1, lng1, lat2, lng2 });
+      return 25; // Default distance fallback
+    }
+
     // Create cache key
     const key = `${lat1.toFixed(6)},${lng1.toFixed(6)}-${lat2.toFixed(6)},${lng2.toFixed(6)}`;
     
@@ -36,14 +43,29 @@ class DistanceCalculator {
   }
 
   /**
-   * Calculate driving distance and time (simulated - uses straight-line with multiplier)
+   * FIXED: Calculate driving distance and time with consistent coordinate handling
    */
   async calculateDrivingDistance(from, to) {
     try {
-      const straightDistance = this.calculateDistance(
-        from.latitude, from.longitude,
-        from.latitude, from.longitude
-      );
+      // FIXED: Handle both coordinate formats consistently
+      const fromLat = from.lat || from.latitude;
+      const fromLng = from.lng || from.longitude;
+      const toLat = to.lat || to.latitude;
+      const toLng = to.lng || to.longitude;
+
+      // Validate coordinates exist and are numbers
+      if (typeof fromLat !== 'number' || typeof fromLng !== 'number' ||
+          typeof toLat !== 'number' || typeof toLng !== 'number') {
+        throw new Error(`Invalid coordinates provided. From: {lat: ${fromLat}, lng: ${fromLng}}, To: {lat: ${toLat}, lng: ${toLng}}`);
+      }
+
+      // Validate coordinate ranges
+      if (Math.abs(fromLat) > 90 || Math.abs(toLat) > 90 ||
+          Math.abs(fromLng) > 180 || Math.abs(toLng) > 180) {
+        throw new Error('Coordinates out of valid range');
+      }
+
+      const straightDistance = this.calculateDistance(fromLat, fromLng, toLat, toLng);
 
       // Simulate driving distance (typically 1.3-1.5x straight-line distance)
       const drivingDistance = straightDistance * 1.4;
@@ -63,47 +85,24 @@ class DistanceCalculator {
         distance: Math.round(drivingDistance * 100) / 100, // Round to 2 decimal places
         duration: Math.round(drivingTime),
         estimatedSpeed,
-        method: 'estimated'
+        method: 'estimated',
+        coordinates: {
+          from: { lat: fromLat, lng: fromLng },
+          to: { lat: toLat, lng: toLng }
+        }
       };
+
     } catch (error) {
       console.error('Driving distance calculation failed:', error);
       
-      // Fallback to straight-line distance
-      const fallbackDistance = this.calculateDistance(
-        from.latitude, from.longitude,
-        to.latitude, to.longitude
-      );
-      
       return {
-        distance: fallbackDistance,
-        duration: Math.round((fallbackDistance / 30) * 60), // 30 km/h fallback speed
-        estimatedSpeed: 30,
-        method: 'fallback'
+        distance: 25, // Safe fallback
+        duration: 60, // Safe fallback
+        estimatedSpeed: 25,
+        method: 'fallback',
+        error: error.message
       };
     }
-  }
-
-  /**
-   * Calculate distance matrix between multiple points
-   */
-  calculateDistanceMatrix(locations) {
-    const matrix = [];
-    
-    for (let i = 0; i < locations.length; i++) {
-      matrix[i] = [];
-      for (let j = 0; j < locations.length; j++) {
-        if (i === j) {
-          matrix[i][j] = 0;
-        } else {
-          matrix[i][j] = this.calculateDistance(
-            locations[i].latitude, locations[i].longitude,
-            locations[j].latitude, locations[j].longitude
-          );
-        }
-      }
-    }
-    
-    return matrix;
   }
 
   /**
@@ -115,15 +114,21 @@ class DistanceCalculator {
     let nearestIndex = -1;
 
     toLocations.forEach((location, index) => {
-      const distance = this.calculateDistance(
-        fromLocation.latitude, fromLocation.longitude,
-        location.latitude, location.longitude
-      );
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearest = location;
-        nearestIndex = index;
+      try {
+        const distance = this.calculateDistance(
+          fromLocation.latitude || fromLocation.lat,
+          fromLocation.longitude || fromLocation.lng,
+          location.latitude || location.lat,
+          location.longitude || location.lng
+        );
+        
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = location;
+          nearestIndex = index;
+        }
+      } catch (error) {
+        console.warn(`Error calculating distance to location ${index}:`, error);
       }
     });
 
@@ -139,13 +144,20 @@ class DistanceCalculator {
    */
   sortByDistance(referencePoint, locations) {
     return locations
-      .map(location => ({
-        location,
-        distance: this.calculateDistance(
-          referencePoint.latitude, referencePoint.longitude,
-          location.latitude, location.longitude
-        )
-      }))
+      .map(location => {
+        try {
+          const distance = this.calculateDistance(
+            referencePoint.latitude || referencePoint.lat,
+            referencePoint.longitude || referencePoint.lng,
+            location.latitude || location.lat,
+            location.longitude || location.lng
+          );
+          return { location, distance };
+        } catch (error) {
+          console.warn('Error calculating distance for sorting:', error);
+          return { location, distance: Infinity };
+        }
+      })
       .sort((a, b) => a.distance - b.distance)
       .map(item => ({
         ...item.location,
@@ -154,15 +166,98 @@ class DistanceCalculator {
   }
 
   /**
+   * Calculate total route distance
+   */
+  calculateRouteDistance(locations) {
+    if (locations.length < 2) return 0;
+
+    let totalDistance = 0;
+    
+    for (let i = 1; i < locations.length; i++) {
+      try {
+        totalDistance += this.calculateDistance(
+          locations[i-1].latitude || locations[i-1].lat,
+          locations[i-1].longitude || locations[i-1].lng,
+          locations[i].latitude || locations[i].lat,
+          locations[i].longitude || locations[i].lng
+        );
+      } catch (error) {
+        console.warn(`Error calculating segment ${i-1} to ${i}:`, error);
+        totalDistance += 25; // Add fallback distance
+      }
+    }
+
+    return totalDistance;
+  }
+
+  /**
+   * Estimate travel time between locations
+   */
+  estimateTravelTime(fromLocation, toLocation, transportMode = 'car') {
+    try {
+      const distance = this.calculateDistance(
+        fromLocation.latitude || fromLocation.lat,
+        fromLocation.longitude || fromLocation.lng,
+        toLocation.latitude || toLocation.lat,
+        toLocation.longitude || toLocation.lng
+      );
+
+      let speed; // km/h
+      switch (transportMode) {
+        case 'walking':
+          speed = 5;
+          break;
+        case 'bicycle':
+          speed = 15;
+          break;
+        case 'car':
+          speed = distance < 20 ? 25 : distance > 100 ? 60 : 40;
+          break;
+        case 'bus':
+          speed = distance < 20 ? 20 : distance > 50 ? 45 : 30;
+          break;
+        default:
+          speed = 40;
+      }
+
+      const timeInHours = distance / speed;
+      const timeInMinutes = timeInHours * 60;
+
+      return {
+        distance,
+        timeInMinutes: Math.round(timeInMinutes),
+        estimatedSpeed: speed,
+        transportMode
+      };
+    } catch (error) {
+      console.error('Travel time estimation failed:', error);
+      return {
+        distance: 25,
+        timeInMinutes: 60,
+        estimatedSpeed: 25,
+        transportMode,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Check if a point is within a certain radius
    */
   isWithinRadius(centerPoint, testPoint, radiusKm) {
-    const distance = this.calculateDistance(
-      centerPoint.latitude, centerPoint.longitude,
-      testPoint.latitude, testPoint.longitude
-    );
-    
-    return distance <= radiusKm;
+    try {
+      const distance = this.calculateDistance(
+        centerPoint.latitude || centerPoint.lat,
+        centerPoint.longitude || centerPoint.lng,
+        testPoint.latitude || testPoint.lat,
+        testPoint.longitude || testPoint.lng
+      );
+      
+      return distance <= radiusKm;
+    } catch (error) {
+      console.warn('Error checking radius:', error);
+      return false;
+    }
   }
 
   /**
@@ -173,16 +268,21 @@ class DistanceCalculator {
       return null;
     }
 
-    let minLat = locations[0].latitude;
-    let maxLat = locations[0].latitude;
-    let minLng = locations[0].longitude;
-    let maxLng = locations[0].longitude;
+    let minLat = locations[0].latitude || locations[0].lat;
+    let maxLat = locations[0].latitude || locations[0].lat;
+    let minLng = locations[0].longitude || locations[0].lng;
+    let maxLng = locations[0].longitude || locations[0].lng;
 
     locations.forEach(location => {
-      minLat = Math.min(minLat, location.latitude);
-      maxLat = Math.max(maxLat, location.latitude);
-      minLng = Math.min(minLng, location.longitude);
-      maxLng = Math.max(maxLng, location.longitude);
+      const lat = location.latitude || location.lat;
+      const lng = location.longitude || location.lng;
+      
+      if (typeof lat === 'number' && typeof lng === 'number') {
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+        minLng = Math.min(minLng, lng);
+        maxLng = Math.max(maxLng, lng);
+      }
     });
 
     // Add padding
@@ -202,62 +302,6 @@ class DistanceCalculator {
         latitude: (minLat + maxLat) / 2,
         longitude: (minLng + maxLng) / 2
       }
-    };
-  }
-
-  /**
-   * Calculate total route distance
-   */
-  calculateRouteDistance(locations) {
-    if (locations.length < 2) return 0;
-
-    let totalDistance = 0;
-    
-    for (let i = 1; i < locations.length; i++) {
-      totalDistance += this.calculateDistance(
-        locations[i-1].latitude, locations[i-1].longitude,
-        locations[i].latitude, locations[i].longitude
-      );
-    }
-
-    return totalDistance;
-  }
-
-  /**
-   * Estimate travel time between locations
-   */
-  estimateTravelTime(fromLocation, toLocation, transportMode = 'car') {
-    const distance = this.calculateDistance(
-      fromLocation.latitude, fromLocation.longitude,
-      toLocation.latitude, toLocation.longitude
-    );
-
-    let speed; // km/h
-    switch (transportMode) {
-      case 'walking':
-        speed = 5;
-        break;
-      case 'bicycle':
-        speed = 15;
-        break;
-      case 'car':
-        speed = distance < 20 ? 25 : distance > 100 ? 60 : 40;
-        break;
-      case 'bus':
-        speed = distance < 20 ? 20 : distance > 50 ? 45 : 30;
-        break;
-      default:
-        speed = 40;
-    }
-
-    const timeInHours = distance / speed;
-    const timeInMinutes = timeInHours * 60;
-
-    return {
-      distance,
-      timeInMinutes: Math.round(timeInMinutes),
-      estimatedSpeed: speed,
-      transportMode
     };
   }
 
@@ -295,7 +339,32 @@ class DistanceCalculator {
     return {
       size: this.cache.size,
       maxSize: this.maxCacheSize,
-      hitRate: 'Not tracked' // Could implement hit rate tracking if needed
+      hitRate: 'Not tracked'
+    };
+  }
+
+  /**
+   * Validate coordinate object format
+   */
+  validateCoordinates(coordinates) {
+    if (!coordinates) return false;
+    
+    const lat = coordinates.lat || coordinates.latitude;
+    const lng = coordinates.lng || coordinates.longitude;
+    
+    return typeof lat === 'number' && typeof lng === 'number' &&
+           Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  }
+
+  /**
+   * Normalize coordinate format to consistent structure
+   */
+  normalizeCoordinates(coordinates) {
+    if (!coordinates) return null;
+    
+    return {
+      latitude: coordinates.lat || coordinates.latitude,
+      longitude: coordinates.lng || coordinates.longitude
     };
   }
 }
