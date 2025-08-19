@@ -208,7 +208,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
 
     // If trip is not in progress, generate route for filtered places
     if (!tripInProgress && filtered.length > 0) {
-      generateRealTimeRoute(filtered.slice(0, 10)); // Limit to 10 places for demo
+      generateRealTimeRoute(filtered); // Limit to 10 places for demo
     }
   }, [selectedCategory, selectedState, searchTerm, places, tripInProgress]);
 

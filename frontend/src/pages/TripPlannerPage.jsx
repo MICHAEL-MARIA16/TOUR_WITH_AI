@@ -18,9 +18,12 @@ import {
   Eye,
   EyeOff,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Navigation
 } from 'lucide-react';
 import { STORAGE_KEYS, ROUTE_SETTINGS, ALGORITHMS } from '../utils/constants';
+
+import RealTimeTripTracker from '../components/RealTimeTripTracker';
 
 const TripPlannerPage = ({ isConnected, onRetry }) => {
   const [places, setPlaces] = useState([]);
@@ -32,6 +35,8 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
   const [optimizationStatus, setOptimizationStatus] = useState(null);
   const [currentView, setCurrentView] = useState('selection'); // 'selection', 'results', 'detailed'
   const [showDetailedPlan, setShowDetailedPlan] = useState(false);
+  const [showLiveTracking, setShowLiveTracking] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   // Route settings with algorithm preferences
   const [routeSettings, setRouteSettings] = useState({
@@ -317,6 +322,15 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
               Detailed Plan
             </button>
           </div>
+          {currentView === 'results' && optimizedRoute && showLiveTracking && (
+            <div className="mt-6">
+              <RealTimeTripTracker 
+                optimizedRoute={optimizedRoute}
+                onLocationUpdate={setUserLocation}
+              />
+            </div>
+          )}
+
 
           {/* Algorithm Status */}
           {optimizationStatus && currentView !== 'detailed' && (
@@ -703,6 +717,14 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                   <button className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                     <CheckCircle size={18} />
                     Save Route
+                  </button>
+
+                  <button
+                    onClick={() => setShowLiveTracking(!showLiveTracking)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition-all"
+                  >
+                    <Navigation size={18} />
+                    {showLiveTracking ? 'Hide' : 'Start'} Live Tracking
                   </button>
 
                   <button

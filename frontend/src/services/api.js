@@ -221,6 +221,42 @@ export const apiService = {
     }
   },
 
+  // Add to apiService in src/services/api.js
+
+// Real-time tracking endpoints
+async startRealTimeTracking(payload) {
+  try {
+    const response = await apiClient.post('/trips/start-realtime-tracking', payload);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to start tracking: ${error.response?.data?.message || error.message}`);
+  }
+},
+
+async updateTripProgress(payload) {
+  try {
+    const response = await apiClient.put('/trips/update-progress', payload);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to update progress: ${error.response?.data?.message || error.message}`);
+  }
+},
+
+async getRealTimeUpdates(tripId, currentLocation, lastUpdateTime) {
+  try {
+    const params = new URLSearchParams({
+      tripId,
+      currentLocation: JSON.stringify(currentLocation),
+      lastUpdateTime
+    });
+    const response = await apiClient.get(`/trips/real-time-updates?${params}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to get updates: ${error.response?.data?.message || error.message}`);
+  }
+},
+
+
   async getTripSuggestions(criteria = {}) {
     try {
       const params = new URLSearchParams(criteria);

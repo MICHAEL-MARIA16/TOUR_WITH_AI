@@ -1315,6 +1315,22 @@ Generate a complete trip plan with all timeline items, tips, and recommendations
     return route.join('; ');
   }
 
+  getCurrentDateTimeContext() {
+    const now = new Date();
+    const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+  
+    return {
+      timestamp: now.getTime(),
+      date: istTime.toISOString().split('T')[0],
+      time: istTime.toTimeString().split(' ')[0].substring(0, 5),
+      hour: istTime.getHours(),
+      dayOfWeek: istTime.toLocaleDateString('en-US', { weekday: 'long' }),
+      formatted: istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+      season: this.getCurrentSeason(istTime),
+      weatherCondition: this.getWeatherCondition(istTime)
+    };
+  }
+
   getScenicStops(fromPlace, toPlace) {
     return [
       'Rural landscapes and traditional villages',

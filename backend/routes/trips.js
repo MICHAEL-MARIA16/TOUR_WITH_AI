@@ -307,6 +307,71 @@ router.get('/info', (req, res) => {
   });
 });
 
+// backend/routes/tripRoutes.js - Add these new endpoints
+
+// Real-time trip tracking endpoints
+router.post('/start-realtime-tracking', handleAsyncErrors(async (req, res) => {
+  try {
+    const { tripId, userId, startLocation } = req.body;
+    
+    const trackingSession = {
+      tripId,
+      userId,
+      startedAt: new Date(),
+      currentLocation: startLocation,
+      status: 'active',
+      progress: {
+        currentCheckpoint: 0,
+        visitedPlaces: [],
+        nextDestination: null
+      }
+    };
+
+    // Store in database or cache
+    await redis.setex(`trip_tracking_${tripId}`, 3600 * 8, JSON.stringify(trackingSession));
+
+    res.json({
+      success: true,
+      trackingId: tripId,
+      data: trackingSession
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}));
+
+router.put('/update-progress', handleAsyncErrors(async (req, res) => {
+  try {
+    const { tripId, currentLocation, checkpointId, action } = req.body;
+    
+    const trackingData = await redis.get(`trip_tracking_${tripId}`);
+    if (!trackingData) {
+      return res.status(404).json({ success: false, message: 'Tracking session not found' });
+    }
+
+    const session = JSON.parse(trackingData);
+    
+    // Update location and progress
+    session.currentLocation = currentLocation;
+    session.lastUpdated = new Date();
+    
+    if (action === 'arrive_at_checkpoint') {
+      session.progress.currentCheckpoint++;
+      session.progress.visitedPlaces.push(checkpointId);
+    }
+
+    await redis.setex(`trip_tracking_${tripId}`, 3600 * 8, JSON.stringify(session));
+
+    res.json({
+      success: true,
+      data: session
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}));
+
+
 // DEBUG ENDPOINT - Test detailed plan generation
 router.post('/test-detailed-plan', handleAsyncErrors(async (req, res) => {
   console.log('🧪 Testing detailed plan generation...');
