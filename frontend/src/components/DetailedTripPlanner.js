@@ -408,7 +408,7 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
       generateDetailedPlan();
       generateAlgorithmExplanation();
     }
-  }, [optimizedRoute, generateDetailedPlan, generateAlgorithmExplanation]);
+  }, [optimizedRoute]);
 
   if (!optimizedRoute?.route || optimizedRoute.route.length === 0) {
     return (

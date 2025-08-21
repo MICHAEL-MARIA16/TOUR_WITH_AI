@@ -1,5 +1,6 @@
-// Updated TripPlannerPage.jsx with Dynamic User Location Selection
+// Updated TripPlannerPage.jsx with Map Integration and Save Route Removal
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { apiService } from '../services/api';
 import ConnectionStatus from '../components/ConnectionStatus';
@@ -34,6 +35,7 @@ import {
 import RealTimeTripTracker from '../components/RealTimeTripTracker';
 
 const TripPlannerPage = ({ isConnected, onRetry }) => {
+  const navigate = useNavigate();
   const [places, setPlaces] = useState([]);
   const [selectedPlaces, setSelectedPlaces] = useState([]);
   const [optimizedRoute, setOptimizedRoute] = useState(null);
@@ -46,7 +48,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
   const [showLiveTracking, setShowLiveTracking] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
 
-  // NEW: Location Selection State
+  // Location Selection State
   const [selectedLocationId, setSelectedLocationId] = useState('coimbatore');
   const [showLocationSelector, setShowLocationSelector] = useState(false);
   const [availableLocations, setAvailableLocations] = useState([]);
@@ -56,7 +58,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     startTime: ROUTE_SETTINGS.DEFAULT_START_TIME,
     totalTimeAvailable: ROUTE_SETTINGS.DEFAULT_DURATION,
     optimizationLevel: 'balanced',
-    userLocationId: 'coimbatore', // NEW: Dynamic location
+    userLocationId: 'coimbatore',
     
     preferences: {
       optimizeFor: 'balanced',
@@ -68,7 +70,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     },
 
     constraints: {
-      startLocation: getLocationById('coimbatore'), // Will be updated dynamically
+      startLocation: getLocationById('coimbatore'),
       budget: null,
       accessibility: {
         wheelchairAccess: false,
@@ -224,7 +226,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
           startDay: new Date().getDay(),
           ...routeSettings.constraints
         },
-        userLocationId: selectedLocationId // Include dynamic location
+        userLocationId: selectedLocationId
       };
 
       console.log('🚀 Calling backend optimization...');
@@ -242,7 +244,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
         efficiency: result.metrics?.efficiency || 0,
         aiInsights: result.aiInsights || {},
         originalPlaces: selectedPlaces,
-        startingLocation: currentLocation // Store starting location info
+        startingLocation: currentLocation
       });
 
       setOptimizationStatus('completed');
@@ -262,6 +264,42 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
       setLoading(false);
     }
   }, [selectedPlaces, routeSettings, selectedLocationId]);
+
+  // Handle view on map
+  const handleViewOnMap = () => {
+    if (!optimizedRoute || !optimizedRoute.route) {
+      toast.error('No optimized route available to display on map');
+      return;
+    }
+
+    const currentLocation = getLocationById(selectedLocationId);
+    
+    // Prepare map data with starting location and optimized route
+    const mapData = {
+      startLocation: {
+        id: 'start-location',
+        name: currentLocation.name,
+        location: {
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude
+        },
+        isStartLocation: true,
+        description: currentLocation.description
+      },
+      optimizedRoute: optimizedRoute.route,
+      routeSettings: routeSettings,
+      algorithm: optimizedRoute.algorithm,
+      metrics: optimizedRoute.metrics
+    };
+
+    // Store in session storage for map page access
+    sessionStorage.setItem('tripMapData', JSON.stringify(mapData));
+    
+    // Navigate to map page with trip mode
+    navigate('/map?mode=trip');
+    
+    toast.success('Opening route on map...');
+  };
 
   // Handle view detailed plan
   const handleViewDetailedPlan = () => {
@@ -554,7 +592,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
           )}
         </div>
 
-        {/* Rest of the component remains the same - just updating the route display */}
+        {/* Place Selection View */}
         {currentView === 'selection' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
@@ -708,6 +746,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
           </div>
         )}
 
+        {/* Results View */}
         {currentView === 'results' && optimizedRoute && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
@@ -841,7 +880,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                 </div>
               )}
 
-              {/* Quick Actions */}
+              {/* Quick Actions - Removed Save Route, Updated View on Map */}
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
                 
@@ -854,14 +893,12 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                     Generate Detailed AI Plan
                   </button>
 
-                  <button className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                  <button 
+                    onClick={handleViewOnMap}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
                     <MapPin size={18} />
-                    View on Map
-                  </button>
-
-                  <button className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                    <CheckCircle size={18} />
-                    Save Route
+                    View Route on Map
                   </button>
 
                   <button
@@ -932,15 +969,16 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
           </div>
         )}
 
+        {/* Detailed View */}
         {currentView === 'detailed' && optimizedRoute && (
           <DetailedTripPlanner 
             optimizedRoute={{
               ...optimizedRoute,
-              userLocationId: selectedLocationId // Pass the selected location ID
+              userLocationId: selectedLocationId
             }} 
             routeSettings={{
               ...routeSettings,
-              userLocationId: selectedLocationId // Include in route settings
+              userLocationId: selectedLocationId
             }}
           />
         )}
@@ -988,7 +1026,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
           </div>
         )}
 
-        {/* Location Change Success Message */}
+        {/* Success Message */}
         {currentView === 'selection' && (
           <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center gap-3">

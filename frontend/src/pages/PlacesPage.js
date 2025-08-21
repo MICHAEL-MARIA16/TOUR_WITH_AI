@@ -30,6 +30,7 @@ const PlacesPage = ({ isConnected, onRetry }) => {
   const [minRating, setMinRating] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [favorites, setFavorites] = useState(new Set());
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   // Load places
   useEffect(() => {
@@ -63,7 +64,12 @@ const PlacesPage = ({ isConnected, onRetry }) => {
   useEffect(() => {
     let filtered = [...places];
 
-    // Apply filters
+    // Apply favorites filter first
+    if (showFavoritesOnly) {
+      filtered = filtered.filter(place => favorites.has(place.id || place._id));
+    }
+
+    // Apply other filters
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(place => place.category === selectedCategory);
     }
@@ -106,7 +112,7 @@ const PlacesPage = ({ isConnected, onRetry }) => {
     });
 
     setFilteredPlaces(filtered);
-  }, [places, selectedCategory, selectedState, minRating, searchTerm, sortBy]);
+  }, [places, selectedCategory, selectedState, minRating, searchTerm, sortBy, favorites, showFavoritesOnly]);
 
   // Get unique states and categories
   const getUniqueStates = () => {
@@ -130,6 +136,16 @@ const PlacesPage = ({ isConnected, onRetry }) => {
       }
       return newFavorites;
     });
+  };
+
+  // Toggle favorites view
+  const toggleFavoritesView = () => {
+    setShowFavoritesOnly(!showFavoritesOnly);
+    if (!showFavoritesOnly) {
+      toast(`Showing ${favorites.size} favorite places`, { icon: '❤️' });
+    } else {
+      toast('Showing all places', { icon: '🏛️' });
+    }
   };
 
   // Render place card
@@ -296,14 +312,36 @@ const PlacesPage = ({ isConnected, onRetry }) => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                 <Compass className="text-blue-600" size={32} />
-                Explore South Indian Destinations
+                {showFavoritesOnly ? 'Your Favorite Places' : 'Explore South Indian Destinations'}
               </h1>
               <p className="text-gray-600 mt-2">
-                Discover amazing temples, palaces, hill stations, and more across South India
+                {showFavoritesOnly 
+                  ? `Your collection of ${favorites.size} favorite places to visit`
+                  : 'Discover amazing temples, palaces, hill stations, and more across South India'
+                }
               </p>
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Favorites toggle button */}
+              <button
+                onClick={toggleFavoritesView}
+                disabled={favorites.size === 0}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  showFavoritesOnly
+                    ? 'bg-red-100 hover:bg-red-200 text-red-700'
+                    : favorites.size === 0
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-red-50 hover:bg-red-100 text-red-600'
+                }`}
+                title={favorites.size === 0 ? 'No favorites yet' : showFavoritesOnly ? 'Show all places' : 'Show only favorites'}
+              >
+                <Heart size={18} fill={showFavoritesOnly ? 'currentColor' : 'none'} />
+                <span className="font-medium">
+                  {showFavoritesOnly ? 'Show All' : `Favorites (${favorites.size})`}
+                </span>
+              </button>
+
               {/* View toggle */}
               <div className="flex bg-gray-100 rounded-lg p-1">
                 <button
@@ -341,7 +379,7 @@ const PlacesPage = ({ isConnected, onRetry }) => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search places, cities, or descriptions..."
+              placeholder={showFavoritesOnly ? "Search your favorite places..." : "Search places, cities, or descriptions..."}
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -434,11 +472,29 @@ const PlacesPage = ({ isConnected, onRetry }) => {
             </div>
           ) : filteredPlaces.length === 0 ? (
             <div className="text-center py-16">
-              <Compass className="mx-auto mb-4 text-gray-400" size={64} />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No places found</h3>
-              <p className="text-gray-600">
-                Try adjusting your filters or search terms to find more places.
-              </p>
+              {showFavoritesOnly ? (
+                <>
+                  <Heart className="mx-auto mb-4 text-gray-400" size={64} />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No favorite places yet</h3>
+                  <p className="text-gray-600 mb-4">
+                    Start exploring and heart the places you'd like to visit!
+                  </p>
+                  <button
+                    onClick={() => setShowFavoritesOnly(false)}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Explore Places
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Compass className="mx-auto mb-4 text-gray-400" size={64} />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No places found</h3>
+                  <p className="text-gray-600">
+                    Try adjusting your filters or search terms to find more places.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <div className="p-6">
@@ -456,7 +512,9 @@ const PlacesPage = ({ isConnected, onRetry }) => {
         {/* Summary Stats */}
         {!loading && filteredPlaces.length > 0 && (
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">Destination Summary</h3>
+            <h3 className="text-lg font-semibold text-blue-900 mb-4">
+              {showFavoritesOnly ? 'Favorites Summary' : 'Destination Summary'}
+            </h3>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
@@ -484,7 +542,7 @@ const PlacesPage = ({ isConnected, onRetry }) => {
                 <div className="text-2xl font-bold text-orange-800">
                   {favorites.size}
                 </div>
-                <div className="text-orange-600 text-sm">Favorites</div>
+                <div className="text-orange-600 text-sm">Total Favorites</div>
               </div>
             </div>
           </div>
