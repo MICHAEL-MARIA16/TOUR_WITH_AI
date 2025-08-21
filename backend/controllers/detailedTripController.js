@@ -1,8 +1,9 @@
-// backend/controllers/detailedTripController.js - FIXED VERSION
+// backend/controllers/detailedTripController.js - UPDATED WITH DYNAMIC LOCATIONS
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Place = require('../models/Place');
 const DistanceCalculator = require('../utils/distanceCalculator');
+const { USER_LOCATIONS, getLocationById, validateLocation } = require('../config/locations'); // IMPORT LOCATIONS
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -19,6 +20,7 @@ class DetailedTripController {
     this.buildEnhancedPrompt = this.buildEnhancedPrompt.bind(this);
     this.parseAndEnhanceAIResponse = this.parseAndEnhanceAIResponse.bind(this);
     this.generateStructuredFallbackPlan = this.generateStructuredFallbackPlan.bind(this);
+    this.getAvailableLocations = this.getAvailableLocations.bind(this);
   }
 
   /**
@@ -26,12 +28,24 @@ class DetailedTripController {
    */
   async generateDetailedPlan(req, res) {
     try {
-      const { places, preferences, routeMetrics, algorithm, userProfile } = req.body;
+      // EXTRACT USER LOCATION ID FROM REQUEST
+      const { places, preferences, routeMetrics, algorithm, userProfile, userLocationId } = req.body;
+      
+      // GET USER LOCATION WITH VALIDATION
+      if (userLocationId && !validateLocation(userLocationId)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid user location ID: ${userLocationId}. Available locations: ${Object.keys(USER_LOCATIONS).join(', ')}`
+        });
+      }
+
+      const userLocation = getLocationById(userLocationId || 'coimbatore');
       
       // Get comprehensive current date/time for real-time planning
       const currentDateTime = this.getCurrentDateTimeContext();
 
       console.log('🧠 Generating PERSONALIZED detailed trip plan...');
+      console.log(`📍 Starting Location: ${userLocation.name} (${userLocation.state})`);
       console.log(`📅 Real-Time Context: ${currentDateTime.formatted}`);
       console.log(`📍 User Selected Places: ${places?.length}`);
       console.log(`⚙️ Algorithm Used: ${algorithm}`);
@@ -52,11 +66,12 @@ class DetailedTripController {
         });
       }
 
-      // Calculate real-time travel schedule with actual distances
+      // Calculate real-time travel schedule with actual distances from dynamic start location
       const realTimeSchedule = await this.calculateRealTimeSchedule(
         places, 
         preferences, 
-        currentDateTime
+        currentDateTime,
+        userLocation // PASS USER LOCATION
       );
 
       // Generate comprehensive personalized plan using Gemini AI
@@ -67,7 +82,8 @@ class DetailedTripController {
         algorithm,
         currentDateTime,
         realTimeSchedule,
-        userProfile
+        userProfile,
+        userLocation // PASS USER LOCATION
       );
 
       // Enhanced response with all features
@@ -79,13 +95,26 @@ class DetailedTripController {
           // Real-time context
           realTimeContext: currentDateTime,
           
+          // USER LOCATION INFO
+          startingLocation: {
+            id: userLocation.id,
+            name: userLocation.name,
+            coordinates: userLocation.coordinates,
+            district: userLocation.district,
+            state: userLocation.state,
+            description: userLocation.description
+          },
+          
           // Interactive features
           interactiveFeatures: {
             mapView: {
               enabled: true,
               startLocation: {
-                name: 'Coimbatore Tidal Park',
-                coordinates: { lat: 11.0638, lng: 77.0596 }
+                name: userLocation.name,
+                coordinates: { 
+                  lat: userLocation.coordinates.latitude, 
+                  lng: userLocation.coordinates.longitude 
+                }
               },
               waypoints: places.map((place, index) => ({
                 id: place.id,
@@ -114,7 +143,7 @@ class DetailedTripController {
               })),
               autoProgress: {
                 enabled: true,
-                interval: 40000, // 40 seconds
+                interval: 40000,
                 smartProgression: true
               }
             }
@@ -137,7 +166,8 @@ class DetailedTripController {
         aiModel: 'gemini-1.5-flash-enhanced',
         algorithm: algorithm || 'personalized-optimization',
         userSpecific: true,
-        realTimePlanning: true
+        realTimePlanning: true,
+        startingFrom: userLocation.name
       };
 
       console.log('✅ Personalized detailed plan generated successfully');
@@ -154,11 +184,11 @@ class DetailedTripController {
   }
 
   /**
-   * Generate comprehensive personalized plan using Gemini AI
+   * Generate comprehensive personalized plan using Gemini AI with dynamic start location
    */
-  async generatePersonalizedPlan(places, preferences, routeMetrics, algorithm, currentDateTime, realTimeSchedule, userProfile) {
+  async generatePersonalizedPlan(places, preferences, routeMetrics, algorithm, currentDateTime, realTimeSchedule, userProfile, userLocation) {
     try {
-      // Build enhanced prompt with all user-specific data
+      // Build enhanced prompt with all user-specific data including dynamic location
       const prompt = this.buildEnhancedPrompt(
         places, 
         preferences, 
@@ -166,7 +196,8 @@ class DetailedTripController {
         algorithm, 
         currentDateTime, 
         realTimeSchedule, 
-        userProfile
+        userProfile,
+        userLocation // PASS USER LOCATION
       );
 
       console.log('🤖 Sending enhanced request to Gemini AI for personalized planning...');
@@ -182,7 +213,8 @@ class DetailedTripController {
         places, 
         preferences, 
         realTimeSchedule, 
-        currentDateTime
+        currentDateTime,
+        userLocation // PASS USER LOCATION
       );
 
       return structuredPlan;
@@ -193,15 +225,16 @@ class DetailedTripController {
         places, 
         preferences, 
         realTimeSchedule, 
-        currentDateTime
+        currentDateTime,
+        userLocation // PASS USER LOCATION
       );
     }
   }
 
   /**
-   * Fixed parseAndEnhanceAIResponse method with robust JSON parsing
+   * Fixed parseAndEnhanceAIResponse method with robust JSON parsing and dynamic location
    */
-  parseAndEnhanceAIResponse(aiResponse, places, preferences, realTimeSchedule, currentDateTime) {
+  parseAndEnhanceAIResponse(aiResponse, places, preferences, realTimeSchedule, currentDateTime, userLocation) {
     try {
       // Multiple JSON extraction strategies
       let parsedPlan = null;
@@ -252,16 +285,19 @@ class DetailedTripController {
         throw new Error('JSON parsing failed - using fallback plan');
       }
 
-      // Enhance the parsed plan with interactive features
+      // Enhance the parsed plan with interactive features and dynamic location
       const enhancedPlan = {
         ...parsedPlan,
         
-        // Add map view functionality
+        // Add map view functionality with dynamic start location
         mapViewData: {
           enabled: true,
           startLocation: {
-            name: 'Coimbatore Tidal Park',
-            coordinates: { lat: 11.0638, lng: 77.0596 }
+            name: userLocation.name,
+            coordinates: { 
+              lat: userLocation.coordinates.latitude, 
+              lng: userLocation.coordinates.longitude 
+            }
           },
           waypoints: places.map((place, index) => ({
             id: place.id,
@@ -289,10 +325,19 @@ class DetailedTripController {
         
         // Real-time context
         realTimeContext: currentDateTime,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        
+        // Starting location info
+        startingLocation: {
+          id: userLocation.id,
+          name: userLocation.name,
+          coordinates: userLocation.coordinates,
+          district: userLocation.district,
+          state: userLocation.state
+        }
       };
 
-      console.log('✅ AI response parsed and enhanced successfully');
+      console.log('✅ AI response parsed and enhanced successfully with dynamic location');
       return enhancedPlan;
 
     } catch (error) {
@@ -300,54 +345,59 @@ class DetailedTripController {
       console.log('🔄 Falling back to structured plan generation...');
       
       // Use fallback plan generation
-      return this.generateStructuredFallbackPlan(places, preferences, realTimeSchedule, currentDateTime);
+      return this.generateStructuredFallbackPlan(places, preferences, realTimeSchedule, currentDateTime, userLocation);
     }
   }
 
   /**
-   * Generate structured fallback plan when AI parsing fails
+   * Generate structured fallback plan with dynamic start location
    */
-  generateStructuredFallbackPlan(places, preferences, realTimeSchedule, currentDateTime) {
-    console.log('⚠️ Using structured fallback plan generation');
+  generateStructuredFallbackPlan(places, preferences, realTimeSchedule, currentDateTime, userLocation) {
+    console.log('⚠️ Using structured fallback plan generation with dynamic location');
     
     try {
       const plan = {
         summary: {
-          title: `Personalized ${places.length}-Destination Journey`,
-          description: `A tailored itinerary for your selected places, optimized for ${currentDateTime.dayOfWeek} ${currentDateTime.season} travel`,
+          title: `Personalized ${places.length}-Destination Journey from ${userLocation.name}`,
+          description: `A tailored itinerary starting from ${userLocation.name}, ${userLocation.state}, optimized for ${currentDateTime.dayOfWeek} ${currentDateTime.season} travel`,
           personalizedHighlights: [
+            `Starting from ${userLocation.name}`,
             'Custom route based on your selected places',
             `Real-time planning for ${currentDateTime.formatted}`,
             'Personalized recommendations for each destination',
             'Interactive map and trip tracking enabled'
           ],
-          tripPersonality: `Customized for ${preferences?.userProfile?.travelStyle || 'explorer'} traveling ${preferences?.groupSize === 1 ? 'solo' : 'in group of ' + (preferences?.groupSize || 'multiple people')}`,
+          tripPersonality: `Customized journey from ${userLocation.district} exploring ${places.length} destinations`,
           uniqueExperiences: places.map(place => `Explore ${place.name} - your personal choice`),
-          realTimeAdvice: `Optimized for ${currentDateTime.dayOfWeek} ${currentDateTime.season} travel with live weather and crowd considerations`
+          realTimeAdvice: `Optimized route starting from ${userLocation.name} for ${currentDateTime.dayOfWeek} ${currentDateTime.season} travel`,
+          startingLocation: userLocation.name
         },
         
-        timeline: this.buildFallbackTimeline(places, realTimeSchedule, currentDateTime, preferences?.userProfile),
+        timeline: this.buildFallbackTimeline(places, realTimeSchedule, currentDateTime, preferences?.userProfile, userLocation),
         
         personalizedRecommendations: {
+          fromYourStartingPoint: [
+            `Journey begins from ${userLocation.name}, ${userLocation.district}`,
+            `${userLocation.description}`,
+            `Best time to start from ${userLocation.name}: ${preferences?.startTime || '09:00'}`
+          ],
           forYourInterests: this.buildInterestRecommendations(preferences?.userProfile?.interests, places),
           forYourTravelStyle: this.getRecommendationsForTravelStyle(preferences?.userProfile?.travelStyle, places),
           forYourGroup: this.getRecommendationsForGroupSize(preferences?.groupSize || 1, places),
-          personalizedTiming: [
-            `Start at ${preferences?.startTime || '09:00'} - perfect for your schedule`,
-            this.getPersonalizedTimingTips(currentDateTime, preferences?.userProfile)
-          ],
-          budgetOptimization: this.getBudgetOptimizationTips(preferences?.budget, places)
+          locationSpecific: this.getLocationSpecificTips(userLocation, places)
         },
         
         personalizedLogistics: {
           transportationForYou: {
             recommended: this.getPersonalizedTransportation(preferences?.userProfile, places),
             alternatives: this.getTransportAlternatives(preferences?.userProfile),
-            personalizedAdvice: this.getTransportPersonalizedAdvice(preferences?.userProfile, preferences?.groupSize || 1)
+            personalizedAdvice: this.getTransportPersonalizedAdvice(preferences?.userProfile, preferences?.groupSize || 1),
+            fromStartLocation: `Transportation options from ${userLocation.name}`
           },
           accommodationSuggestions: {
             personalizedOptions: this.getPersonalizedAccommodation(preferences?.userProfile, preferences?.budget),
-            bookingStrategy: this.getBookingStrategy(currentDateTime, preferences?.userProfile)
+            bookingStrategy: this.getBookingStrategy(currentDateTime, preferences?.userProfile),
+            nearStartLocation: `Accommodation options near ${userLocation.name}`
           },
           personalizedPacking: {
             essentials: this.getPersonalizedPackingList(preferences?.userProfile, currentDateTime).split(',').map(item => item.trim()),
@@ -360,7 +410,13 @@ class DetailedTripController {
         realTimeFeatures: {
           liveMapIntegration: {
             enabled: true,
-            startLocation: { name: "Coimbatore Tidal Park", coordinates: { lat: 11.0638, lng: 77.0596 } },
+            startLocation: { 
+              name: userLocation.name, 
+              coordinates: { 
+                lat: userLocation.coordinates.latitude, 
+                lng: userLocation.coordinates.longitude 
+              } 
+            },
             waypoints: places.map(place => ({
               name: place.name,
               coordinates: { lat: place.location.latitude, lng: place.location.longitude }
@@ -388,10 +444,11 @@ class DetailedTripController {
         },
         
         metadata: {
-          personalizationLevel: "Fallback",
+          personalizationLevel: "Fallback with Dynamic Location",
           userSpecific: true,
           realTimePlanning: true,
           basedOnUserSelections: true,
+          startingLocation: userLocation,
           generatedAt: new Date().toISOString(),
           validUntil: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           aiModel: "fallback-structured",
@@ -401,21 +458,18 @@ class DetailedTripController {
         }
       };
 
-      console.log('✅ Structured fallback plan generated successfully');
+      console.log('✅ Structured fallback plan with dynamic location generated successfully');
       return plan;
       
     } catch (error) {
       console.error('💥 Even fallback plan generation failed:', error);
       
-      // Ultra-simple fallback
+      // Ultra-simple fallback with user location
       return {
         summary: {
-          title: 'Basic Trip Plan',
-          description: `Visit ${places.length} selected destinations`,
-          personalizedHighlights: ['Custom route', 'Your selected places'],
-          tripPersonality: 'Basic itinerary',
-          uniqueExperiences: places.map(p => `Visit ${p.name}`),
-          realTimeAdvice: 'Basic travel recommendations'
+          title: `Basic Trip Plan from ${userLocation.name}`,
+          description: `Visit ${places.length} selected destinations starting from ${userLocation.name}`,
+          startingLocation: userLocation.name
         },
         timeline: places.map((place, index) => ({
           time: `${9 + index * 2}:00`,
@@ -424,127 +478,33 @@ class DetailedTripController {
           activities: ['Explore and enjoy the location'],
           personalizedTips: ['Take your time', 'Enjoy the experience']
         })),
-        personalizedRecommendations: {
-          general: ['Start early', 'Carry water', 'Take photos']
-        },
         metadata: {
-          personalizationLevel: "Minimal",
+          personalizationLevel: "Minimal with Dynamic Location",
           fallbackUsed: true,
-          errorRecovery: true
+          errorRecovery: true,
+          startingLocation: userLocation
         }
       };
     }
   }
 
   /**
-   * Build fallback timeline when AI parsing fails
+   * Build enhanced prompt with dynamic user location
    */
-  buildFallbackTimeline(places, realTimeSchedule, currentDateTime, userProfile) {
-    const timeline = [];
-    
-    // Add start location
-    timeline.push({
-      time: realTimeSchedule.timeline[0]?.scheduledTime || '09:00',
-      endTime: realTimeSchedule.timeline[0]?.endTime || '09:15',
-      place: {
-        name: "Coimbatore Tidal Park",
-        type: "start_location",
-        coordinates: { lat: 11.0638, lng: 77.0596 }
-      },
-      duration: 15,
-      activities: [
-        "Final preparation and departure checklist",
-        "Weather check and route confirmation",
-        "Personal travel ritual"
-      ],
-      personalizedTips: [
-        `Pack according to ${currentDateTime.season} season`,
-        "Download offline maps for selected destinations",
-        "Carry essentials for the journey"
-      ],
-      realTimeUpdate: `Current weather: ${currentDateTime.weatherCondition}`,
-      travel: realTimeSchedule.timeline[1] ? {
-        toNext: realTimeSchedule.timeline[1].name,
-        duration: realTimeSchedule.timeline[1].travelTime || 45,
-        distance: `${realTimeSchedule.timeline[1].travelDistance || 25}km`,
-        mode: "private_vehicle"
-      } : null
-    });
-
-    // Add each place with fallback data
-    places.forEach((place, index) => {
-      const scheduleItem = realTimeSchedule.timeline[index + 1] || {
-        arrivalTime: `${9 + (index + 1) * 2}:00`,
-        departureTime: `${9 + (index + 1) * 2 + 1}:30`,
-        duration: place.averageVisitDuration || 90
-      };
-
-      const timelineItem = {
-        time: scheduleItem.arrivalTime,
-        endTime: scheduleItem.departureTime,
-        place: {
-          name: place.name,
-          city: place.city,
-          state: place.state,
-          category: place.category,
-          rating: place.rating,
-          coordinates: { 
-            lat: place.location?.latitude || 11.0168, 
-            lng: place.location?.longitude || 76.9558 
-          },
-          personalRelevance: this.getPersonalRelevance(place, userProfile)
-        },
-        duration: place.averageVisitDuration || 90,
-        personalizedActivities: this.generatePersonalizedActivities(place, userProfile),
-        culturalInsights: this.generateCulturalInsights(place, userProfile),
-        personalizedTips: this.generatePersonalizedTips(place, userProfile, currentDateTime),
-        photographyRecommendations: this.generatePhotographyTips(place, currentDateTime),
-        personalizedFoodRecommendations: this.generatePersonalizedFoodRecommendations(place, userProfile),
-        weatherConsiderations: [
-          `${currentDateTime.season} season: ${this.getSeasonalAdvice(place, currentDateTime)}`,
-          this.getWeatherSpecificAdvice(place, currentDateTime)
-        ],
-        entryInfo: {
-          fee: place.entryFee?.indian || place.entryFee?.amount || 0,
-          currency: "INR",
-          personalizedTicketAdvice: this.getPersonalizedTicketAdvice(place, userProfile),
-          openingHours: this.getRealTimeOpeningHours(place, currentDateTime)
-        }
-      };
-
-      // Add travel info if not the last place
-      if (index < places.length - 1) {
-        timelineItem.travel = {
-          toNext: places[index + 1].name,
-          duration: 45,
-          distance: "25km",
-          personalizedRoute: this.getPersonalizedRoute(place, places[index + 1], userProfile),
-          scenicStops: this.getScenicStops(place, places[index + 1])
-        };
-      }
-
-      timeline.push(timelineItem);
-    });
-
-    return timeline;
-  }
-
-  /**
-   * Fixed buildEnhancedPrompt method with simpler JSON structure
-   */
-  buildEnhancedPrompt(places, preferences, routeMetrics, algorithm, currentDateTime, realTimeSchedule, userProfile) {
+  buildEnhancedPrompt(places, preferences, routeMetrics, algorithm, currentDateTime, realTimeSchedule, userProfile, userLocation) {
     const startTime = preferences?.startTime || currentDateTime.time;
     const totalHours = Math.ceil((preferences?.totalTimeAvailable || 480) / 60);
     const budget = preferences?.budget || null;
     const groupSize = preferences?.groupSize || 1;
 
-    // Simplified response structure to avoid JSON parsing issues
+    // Updated response example with dynamic location
     const responseExample = {
       summary: {
         title: "Trip title here",
         description: "Trip description here",
         personalizedHighlights: ["highlight 1", "highlight 2"],
-        tripPersonality: "trip personality here"
+        tripPersonality: "trip personality here",
+        startingLocation: userLocation.name
       },
       timeline: [
         {
@@ -567,6 +527,13 @@ REAL-TIME CONTEXT:
 • Season: ${currentDateTime.season}
 • Weather: ${currentDateTime.weatherCondition}
 
+STARTING LOCATION:
+• City: ${userLocation.name}
+• District: ${userLocation.district}
+• State: ${userLocation.state}
+• Coordinates: ${userLocation.coordinates.latitude}, ${userLocation.coordinates.longitude}
+• Description: ${userLocation.description}
+
 USER'S SELECTED PLACES:
 ${places.map((place, index) => `${index + 1}. ${place.name} (${place.city}) - ${place.category} - Rating: ${place.rating}/5`).join('\n')}
 
@@ -576,7 +543,9 @@ USER PREFERENCES:
 • Budget: ${budget ? '₹' + budget : 'Flexible'}
 • Group Size: ${groupSize}
 
-IMPORTANT: Return ONLY valid JSON in this exact format:
+IMPORTANT: The journey will start from ${userLocation.name}, ${userLocation.state}. Plan the route accordingly and mention the starting location in your recommendations.
+
+Return ONLY valid JSON in this exact format:
 ${JSON.stringify(responseExample, null, 2)}
 
 Generate a complete trip plan with all timeline items, tips, and recommendations. Ensure all JSON is properly formatted with no trailing commas or syntax errors.`;
@@ -585,9 +554,9 @@ Generate a complete trip plan with all timeline items, tips, and recommendations
   }
 
   /**
-   * Calculate real-time schedule with actual distances and timing
+   * Calculate real-time schedule with dynamic start location
    */
-  async calculateRealTimeSchedule(places, preferences, currentDateTime) {
+  async calculateRealTimeSchedule(places, preferences, currentDateTime, userLocation) {
     const schedule = {
       timeline: [],
       routeCoordinates: [],
@@ -599,19 +568,24 @@ Generate a complete trip plan with all timeline items, tips, and recommendations
     const startDateTime = this.parseTimeToDateTime(startTime, currentDateTime);
     let currentTime = new Date(startDateTime);
 
-    // Start location
-    const tidalPark = {
-      id: 'tidal_park_start',
-      name: 'Coimbatore Tidal Park',
+    // DYNAMIC START LOCATION
+    const startLocationData = {
+      id: `${userLocation.id}_start`,
+      name: userLocation.name,
       type: 'start',
-      coordinates: { lat: 11.0638, lng: 77.0596 },
+      coordinates: { 
+        lat: userLocation.coordinates.latitude, 
+        lng: userLocation.coordinates.longitude 
+      },
+      district: userLocation.district,
+      state: userLocation.state,
       scheduledTime: this.formatDateTime(currentTime),
       endTime: this.formatDateTime(new Date(currentTime.getTime() + 15 * 60000)),
       duration: 15
     };
 
-    schedule.timeline.push(tidalPark);
-    schedule.routeCoordinates.push([11.0638, 77.0596]);
+    schedule.timeline.push(startLocationData);
+    schedule.routeCoordinates.push([userLocation.coordinates.latitude, userLocation.coordinates.longitude]);
     currentTime = new Date(currentTime.getTime() + 15 * 60000);
 
     // Process each place with error handling
@@ -621,9 +595,9 @@ Generate a complete trip plan with all timeline items, tips, and recommendations
       let travelDistance = 25; // Default fallback
 
       try {
-        // Try to calculate actual travel time and distance
+        // DYNAMIC PREVIOUS LOCATION (use user location for first place)
         const prevLocation = i === 0 ? 
-          { latitude: 11.0638, longitude: 77.0596 } : 
+          userLocation.coordinates : 
           places[i - 1].location;
 
         if (prevLocation && place.location) {
@@ -637,7 +611,6 @@ Generate a complete trip plan with all timeline items, tips, and recommendations
         }
       } catch (error) {
         console.warn(`Error calculating travel for ${place.name}:`, error.message);
-        // Use fallback values
       }
 
       // Add travel time
@@ -678,6 +651,171 @@ Generate a complete trip plan with all timeline items, tips, and recommendations
 
     schedule.totalDuration = Math.round((currentTime - startDateTime) / (1000 * 60));
     return schedule;
+  }
+
+  /**
+   * Build fallback timeline with dynamic user location
+   */
+  buildFallbackTimeline(places, realTimeSchedule, currentDateTime, userProfile, userLocation) {
+    const timeline = [];
+    
+    // DYNAMIC START LOCATION
+    timeline.push({
+      time: realTimeSchedule.timeline[0]?.scheduledTime || '09:00',
+      endTime: realTimeSchedule.timeline[0]?.endTime || '09:15',
+      place: {
+        name: userLocation.name,
+        type: "start_location",
+        district: userLocation.district,
+        state: userLocation.state,
+        coordinates: { 
+          lat: userLocation.coordinates.latitude, 
+          lng: userLocation.coordinates.longitude 
+        }
+      },
+      duration: 15,
+      activities: [
+        "Final preparation and departure checklist",
+        `Weather check for journey from ${userLocation.name}`,
+        "Personal travel ritual and route confirmation"
+      ],
+      personalizedTips: [
+        `Pack according to ${currentDateTime.season} season from ${userLocation.name}`,
+        "Download offline maps for selected destinations",
+        `Starting from ${userLocation.description}`
+      ],
+      realTimeUpdate: `Current weather: ${currentDateTime.weatherCondition}`,
+      travel: realTimeSchedule.timeline[1] ? {
+        toNext: realTimeSchedule.timeline[1].name,
+        duration: realTimeSchedule.timeline[1].travelTime || 45,
+        distance: `${realTimeSchedule.timeline[1].travelDistance || 25}km`,
+        mode: "private_vehicle",
+        fromLocation: userLocation.name
+      } : null
+    });
+
+    // Add each place with updated context
+    places.forEach((place, index) => {
+      const scheduleItem = realTimeSchedule.timeline[index + 1] || {
+        arrivalTime: `${9 + (index + 1) * 2}:00`,
+        departureTime: `${9 + (index + 1) * 2 + 1}:30`,
+        duration: place.averageVisitDuration || 90
+      };
+
+      const timelineItem = {
+        time: scheduleItem.arrivalTime,
+        endTime: scheduleItem.departureTime,
+        place: {
+          name: place.name,
+          city: place.city,
+          state: place.state,
+          category: place.category,
+          rating: place.rating,
+          coordinates: { 
+            lat: place.location?.latitude || 11.0168, 
+            lng: place.location?.longitude || 76.9558 
+          },
+          personalRelevance: this.getPersonalRelevance(place, userProfile),
+          distanceFromStart: this.calculateDistanceFromStart(place, userLocation)
+        },
+        duration: place.averageVisitDuration || 90,
+        personalizedActivities: this.generatePersonalizedActivities(place, userProfile),
+        culturalInsights: this.generateCulturalInsights(place, userProfile),
+        personalizedTips: this.generatePersonalizedTips(place, userProfile, currentDateTime),
+        photographyRecommendations: this.generatePhotographyTips(place, currentDateTime),
+        personalizedFoodRecommendations: this.generatePersonalizedFoodRecommendations(place, userProfile),
+        weatherConsiderations: [
+          `${currentDateTime.season} season: ${this.getSeasonalAdvice(place, currentDateTime)}`,
+          this.getWeatherSpecificAdvice(place, currentDateTime)
+        ],
+        entryInfo: {
+          fee: place.entryFee?.indian || place.entryFee?.amount || 0,
+          currency: "INR",
+          personalizedTicketAdvice: this.getPersonalizedTicketAdvice(place, userProfile),
+          openingHours: this.getRealTimeOpeningHours(place, currentDateTime)
+        }
+      };
+
+      // Add travel info with source location context
+      if (index < places.length - 1) {
+        timelineItem.travel = {
+          toNext: places[index + 1].name,
+          duration: 45,
+          distance: "25km",
+          personalizedRoute: this.getPersonalizedRoute(place, places[index + 1], userProfile),
+          scenicStops: this.getScenicStops(place, places[index + 1])
+        };
+      }
+
+      timeline.push(timelineItem);
+    });
+
+    return timeline;
+  }
+
+  /**
+   * Helper method for location-specific tips
+   */
+  getLocationSpecificTips(userLocation, places) {
+    const tips = [
+      `Starting your journey from ${userLocation.name} in ${userLocation.district}`,
+      `Local area: ${userLocation.description}`
+    ];
+
+    // Add state-specific tips
+    if (userLocation.state === 'Tamil Nadu') {
+      tips.push('Tamil Nadu offers rich cultural heritage and temple architecture');
+    } else if (userLocation.state === 'Kerala') {
+      tips.push('Kerala is known for its backwaters, spices, and natural beauty');
+    } else if (userLocation.state === 'Karnataka') {
+      tips.push('Karnataka combines modern cities with historical palaces and heritage');
+    }
+
+    return tips;
+  }
+
+  /**
+   * Helper method to calculate distance from start location
+   */
+  calculateDistanceFromStart(place, userLocation) {
+    // Simple distance calculation (you can enhance this)
+    const R = 6371; // Earth's radius in km
+    const dLat = (place.location.latitude - userLocation.coordinates.latitude) * Math.PI / 180;
+    const dLon = (place.location.longitude - userLocation.coordinates.longitude) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(userLocation.coordinates.latitude * Math.PI / 180) * Math.cos(place.location.latitude * Math.PI / 180) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    return Math.round(distance);
+  }
+
+  /**
+   * New endpoint to get available locations
+   */
+  async getAvailableLocations(req, res) {
+    try {
+      const locations = Object.values(USER_LOCATIONS).map(location => ({
+        id: location.id,
+        name: location.name,
+        district: location.district,
+        state: location.state,
+        description: location.description
+      }));
+
+      res.status(200).json({
+        success: true,
+        locations,
+        defaultLocation: 'coimbatore',
+        totalLocations: locations.length
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch available locations',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
   }
 
   // HELPER METHODS
@@ -1313,22 +1451,6 @@ Generate a complete trip plan with all timeline items, tips, and recommendations
     }
     
     return route.join('; ');
-  }
-
-  getCurrentDateTimeContext() {
-    const now = new Date();
-    const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
-  
-    return {
-      timestamp: now.getTime(),
-      date: istTime.toISOString().split('T')[0],
-      time: istTime.toTimeString().split(' ')[0].substring(0, 5),
-      hour: istTime.getHours(),
-      dayOfWeek: istTime.toLocaleDateString('en-US', { weekday: 'long' }),
-      formatted: istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      season: this.getCurrentSeason(istTime),
-      weatherCondition: this.getWeatherCondition(istTime)
-    };
   }
 
   getScenicStops(fromPlace, toPlace) {

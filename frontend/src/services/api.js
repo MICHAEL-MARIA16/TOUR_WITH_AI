@@ -192,6 +192,64 @@ export const apiService = {
     }
   },
 
+  // Add this method to your existing apiService object in src/services/api.js
+
+// NEW: Generate Algorithm Explanation
+async generateAlgorithmExplanation(payload) {
+  try {
+    console.log('🧠 Calling algorithm explanation generation...');
+    console.log('📊 Payload:', {
+      routeLength: payload.route?.length,
+      algorithm: payload.algorithm,
+      explanationLevel: payload.explanationLevel
+    });
+
+    const response = await apiClient.post('/trips/generate-algorithm-explanation', payload);
+
+    console.log('✅ Algorithm explanation response:', {
+      success: response.data.success,
+      hasReasoning: !!response.data.data?.reasoning,
+      hasOptimizations: !!response.data.data?.optimizations,
+      hasTips: !!response.data.data?.tips,
+      explanationLevel: response.data.metadata?.explanationLevel
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('💥 Algorithm explanation failed:', error);
+    throw new Error(`Algorithm explanation failed: ${error.response?.data?.message || error.message}`);
+  }
+},
+
+// Enhanced generateDetailedTripPlan method
+async generateDetailedTripPlan(payload) {
+  try {
+    console.log('📋 Calling detailed trip plan generation...');
+    console.log('📊 Payload:', {
+      placesCount: payload.places?.length,
+      algorithm: payload.algorithm,
+      startTime: payload.preferences?.startTime,
+      userLocationId: payload.preferences?.userLocationId
+    });
+
+    const response = await apiClient.post('/trips/generate-detailed-plan', payload);
+
+    console.log('✅ Detailed plan generation response:', {
+      success: response.data.success,
+      hasSummary: !!response.data.data?.summary,
+      hasTimeline: !!response.data.data?.timeline,
+      hasInsights: !!response.data.data?.insights,
+      hasRecommendations: !!response.data.data?.recommendations,
+      hasLogistics: !!response.data.data?.logistics,
+      hasPracticalInfo: !!response.data.data?.practicalInfo
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('💥 Detailed plan generation failed:', error);
+    throw new Error(`Detailed plan generation failed: ${error.response?.data?.message || error.message}`);
+  }
+},
   async getRouteSuggestions(criteria = {}) {
     try {
       const params = new URLSearchParams(criteria);

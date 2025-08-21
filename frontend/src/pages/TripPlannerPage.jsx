@@ -1,10 +1,10 @@
-// Updated TripPlannerPage.jsx with DetailedTripPlanner integration
+// Updated TripPlannerPage.jsx with Dynamic User Location Selection
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { apiService } from '../services/api';
 import ConnectionStatus from '../components/ConnectionStatus';
 import LoadingSpinner from '../components/LoadingSpinner';
-import DetailedTripPlanner from '../components/DetailedTripPlanner'; // Import the new component
+import DetailedTripPlanner from '../components/DetailedTripPlanner';
 import { 
   Settings, 
   Zap, 
@@ -19,9 +19,17 @@ import {
   EyeOff,
   ChevronLeft,
   ChevronRight,
-  Navigation
+  Navigation,
+  ChevronDown
 } from 'lucide-react';
 import { STORAGE_KEYS, ROUTE_SETTINGS, ALGORITHMS } from '../utils/constants';
+import { 
+  USER_LOCATIONS, 
+  getLocationById, 
+  getAllLocations, 
+  getLocationsByStateGrouped,
+  validateLocation 
+} from '../utils/locations';
 
 import RealTimeTripTracker from '../components/RealTimeTripTracker';
 
@@ -33,16 +41,22 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
   const [error, setError] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [optimizationStatus, setOptimizationStatus] = useState(null);
-  const [currentView, setCurrentView] = useState('selection'); // 'selection', 'results', 'detailed'
+  const [currentView, setCurrentView] = useState('selection');
   const [showDetailedPlan, setShowDetailedPlan] = useState(false);
   const [showLiveTracking, setShowLiveTracking] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
 
-  // Route settings with algorithm preferences
+  // NEW: Location Selection State
+  const [selectedLocationId, setSelectedLocationId] = useState('coimbatore');
+  const [showLocationSelector, setShowLocationSelector] = useState(false);
+  const [availableLocations, setAvailableLocations] = useState([]);
+
+  // Route settings with dynamic user location
   const [routeSettings, setRouteSettings] = useState({
     startTime: ROUTE_SETTINGS.DEFAULT_START_TIME,
     totalTimeAvailable: ROUTE_SETTINGS.DEFAULT_DURATION,
     optimizationLevel: 'balanced',
+    userLocationId: 'coimbatore', // NEW: Dynamic location
     
     preferences: {
       optimizeFor: 'balanced',
@@ -54,11 +68,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     },
 
     constraints: {
-      startLocation: {
-        name: 'Coimbatore Tidal Park',
-        latitude: 11.0638,
-        longitude: 77.0596
-      },
+      startLocation: getLocationById('coimbatore'), // Will be updated dynamically
       budget: null,
       accessibility: {
         wheelchairAccess: false,
@@ -66,6 +76,45 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
       }
     }
   });
+
+  // Load available locations on component mount
+  useEffect(() => {
+    const locations = getAllLocations();
+    setAvailableLocations(locations);
+    
+    // Set initial location data
+    const initialLocation = getLocationById(selectedLocationId);
+    setRouteSettings(prev => ({
+      ...prev,
+      userLocationId: selectedLocationId,
+      constraints: {
+        ...prev.constraints,
+        startLocation: initialLocation
+      }
+    }));
+  }, [selectedLocationId]);
+
+  // Handle location selection
+  const handleLocationSelect = useCallback((locationId) => {
+    if (!validateLocation(locationId)) {
+      toast.error('Invalid location selected');
+      return;
+    }
+
+    const selectedLocation = getLocationById(locationId);
+    setSelectedLocationId(locationId);
+    setRouteSettings(prev => ({
+      ...prev,
+      userLocationId: locationId,
+      constraints: {
+        ...prev.constraints,
+        startLocation: selectedLocation
+      }
+    }));
+    setShowLocationSelector(false);
+    
+    toast.success(`Starting location set to ${selectedLocation.name}`);
+  }, []);
 
   // Load places from API
   const loadPlaces = useCallback(async () => {
@@ -85,7 +134,6 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
       const places = response.places;
       console.log(`✅ Loaded ${places.length} places`);
 
-      // Validate places for algorithm compatibility
       const validPlaces = places.filter(place => {
         const hasValidLocation = place.location && 
           typeof place.location.latitude === 'number' && 
@@ -125,7 +173,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     });
   }, []);
 
-  // Algorithm-based route optimization
+  // Algorithm-based route optimization with dynamic location
   const handleOptimizeRoute = useCallback(async () => {
     if (selectedPlaces.length < 2) {
       toast.error('Please select at least 2 places for optimization.');
@@ -143,12 +191,14 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     setOptimizationStatus('running');
     setCurrentView('results');
 
+    const currentLocation = getLocationById(selectedLocationId);
     console.log('🤖 Starting algorithm-based optimization');
     console.log(`📍 Places: ${selectedPlaces.length}`);
+    console.log(`🏠 Starting from: ${currentLocation.name}`);
     console.log(`⚙️ Level: ${routeSettings.optimizationLevel}`);
 
     try {
-      // Prepare algorithm payload
+      // Prepare algorithm payload with dynamic location
       const algorithmPayload = {
         places: selectedPlaces.map(place => ({
           id: place.id,
@@ -173,7 +223,8 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
           totalTimeAvailable: routeSettings.totalTimeAvailable,
           startDay: new Date().getDay(),
           ...routeSettings.constraints
-        }
+        },
+        userLocationId: selectedLocationId // Include dynamic location
       };
 
       console.log('🚀 Calling backend optimization...');
@@ -190,13 +241,14 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
         metrics: result.metrics,
         efficiency: result.metrics?.efficiency || 0,
         aiInsights: result.aiInsights || {},
-        originalPlaces: selectedPlaces
+        originalPlaces: selectedPlaces,
+        startingLocation: currentLocation // Store starting location info
       });
 
       setOptimizationStatus('completed');
 
       toast.success(
-        `🧠 ${result.algorithm} optimized ${result.route.length} places!`,
+        `🧠 ${result.algorithm} optimized ${result.route.length} places from ${currentLocation.name}!`,
         { duration: 4000 }
       );
 
@@ -209,7 +261,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedPlaces, routeSettings]);
+  }, [selectedPlaces, routeSettings, selectedLocationId]);
 
   // Handle view detailed plan
   const handleViewDetailedPlan = () => {
@@ -229,6 +281,10 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     setOptimizationStatus(null);
     setShowDetailedPlan(false);
   };
+
+  // Get grouped locations for dropdown
+  const groupedLocations = getLocationsByStateGrouped();
+  const currentLocation = getLocationById(selectedLocationId);
 
   // Connection check
   if (!isConnected) {
@@ -266,8 +322,8 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                   AI-Powered Trip Planner
                 </h1>
                 <p className="text-gray-600 mt-2">
-                  {currentView === 'selection' && 'Advanced algorithms optimize your route for the best travel experience'}
-                  {currentView === 'results' && 'Your optimized route is ready'}
+                  {currentView === 'selection' && `Plan your journey starting from ${currentLocation.name}`}
+                  {currentView === 'results' && `Your optimized route from ${currentLocation.name} is ready`}
                   {currentView === 'detailed' && 'Comprehensive AI-generated trip plan'}
                 </p>
               </div>
@@ -297,6 +353,79 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
             </div>
           </div>
 
+          {/* Dynamic Starting Location Display */}
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <MapPin className="text-blue-600" size={20} />
+                <div>
+                  <h3 className="font-semibold text-blue-900">Starting Location</h3>
+                  <p className="text-blue-700">
+                    {currentLocation.name} - {currentLocation.district}, {currentLocation.state}
+                  </p>
+                  <p className="text-sm text-blue-600">{currentLocation.description}</p>
+                </div>
+              </div>
+              {currentView === 'selection' && (
+                <button
+                  onClick={() => setShowLocationSelector(!showLocationSelector)}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors text-sm"
+                >
+                  Change Location
+                  <ChevronDown size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Location Selector Dropdown */}
+          {showLocationSelector && currentView === 'selection' && (
+            <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-lg">
+              <h4 className="font-semibold text-gray-900 mb-3">Select Your Starting Location</h4>
+              <div className="max-h-64 overflow-y-auto">
+                {Object.entries(groupedLocations).map(([state, locations]) => (
+                  <div key={state} className="mb-4">
+                    <h5 className="font-medium text-gray-700 text-sm mb-2 uppercase tracking-wide">
+                      {state}
+                    </h5>
+                    <div className="space-y-1 pl-2">
+                      {locations.map((location) => (
+                        <button
+                          key={location.id}
+                          onClick={() => handleLocationSelect(location.id)}
+                          className={`w-full text-left p-3 rounded-lg border transition-all ${
+                            selectedLocationId === location.id
+                              ? 'border-blue-500 bg-blue-50 text-blue-900'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h6 className="font-medium">{location.name}</h6>
+                              <p className="text-sm text-gray-600">{location.district}, {location.state}</p>
+                              <p className="text-xs text-gray-500 mt-1">{location.description}</p>
+                            </div>
+                            {selectedLocationId === location.id && (
+                              <CheckCircle className="text-blue-600 flex-shrink-0" size={20} />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <button
+                  onClick={() => setShowLocationSelector(false)}
+                  className="text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Close selector
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Breadcrumb Navigation */}
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <button 
@@ -322,6 +451,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
               Detailed Plan
             </button>
           </div>
+
           {currentView === 'results' && optimizedRoute && showLiveTracking && (
             <div className="mt-6">
               <RealTimeTripTracker 
@@ -330,7 +460,6 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
               />
             </div>
           )}
-
 
           {/* Algorithm Status */}
           {optimizationStatus && currentView !== 'detailed' && (
@@ -341,7 +470,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                 {optimizationStatus === 'failed' && <AlertCircle className="text-red-600" size={20} />}
                 
                 <span className="font-medium">
-                  {optimizationStatus === 'running' && 'Algorithm optimizing route...'}
+                  {optimizationStatus === 'running' && `Algorithm optimizing route from ${currentLocation.name}...`}
                   {optimizationStatus === 'completed' && 'Optimization completed!'}
                   {optimizationStatus === 'failed' && 'Optimization failed'}
                 </span>
@@ -408,21 +537,24 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                 </div>
               </div>
 
-              {/* Start Location Info */}
+              {/* Updated Start Location Info */}
               <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center gap-2 mb-1">
                   <MapPin className="text-blue-600" size={16} />
-                  <span className="font-medium text-blue-800">Fixed Start Location</span>
+                  <span className="font-medium text-blue-800">Current Start Location</span>
                 </div>
                 <p className="text-sm text-blue-700">
-                  All routes will begin from Coimbatore Tidal Park as per your requirements
+                  All routes will begin from {currentLocation.name} in {currentLocation.district}, {currentLocation.state}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  {currentLocation.description}
                 </p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Dynamic Content Based on Current View */}
+        {/* Rest of the component remains the same - just updating the route display */}
         {currentView === 'selection' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
@@ -517,8 +649,8 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                     <span className="text-blue-600 font-semibold">1</span>
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">Select Places</h3>
-                    <p className="text-sm text-gray-600">Choose 2-20 places you want to visit from our curated list.</p>
+                    <h3 className="font-medium text-gray-900">Choose Starting Point</h3>
+                    <p className="text-sm text-gray-600">Select your starting location from {availableLocations.length} cities across South India.</p>
                   </div>
                 </div>
 
@@ -527,14 +659,24 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                     <span className="text-green-600 font-semibold">2</span>
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">AI Optimization</h3>
-                    <p className="text-sm text-gray-600">Our algorithms find the best route starting from Coimbatore Tidal Park.</p>
+                    <h3 className="font-medium text-gray-900">Select Places</h3>
+                    <p className="text-sm text-gray-600">Choose 2-20 places you want to visit from our curated list.</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-purple-600 font-semibold">3</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">AI Optimization</h3>
+                    <p className="text-sm text-gray-600">Our algorithms find the best route starting from {currentLocation.name}.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-orange-600 font-semibold">4</span>
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-900">Detailed Plan</h3>
@@ -545,7 +687,9 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
 
               {selectedPlaces.length > 0 && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="font-medium text-blue-800 mb-2">Selected Places Preview</h4>
+                  <h4 className="font-medium text-blue-800 mb-2">
+                    Selected Places Preview (From {currentLocation.name})
+                  </h4>
                   <div className="space-y-1">
                     {selectedPlaces.slice(0, 5).map((place, index) => (
                       <div key={place.id} className="text-sm text-blue-700">
@@ -612,14 +756,15 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
 
                 {/* Route List */}
                 <div className="space-y-2">
-                  {/* Start Location */}
+                  {/* Start Location - Dynamic */}
                   <div className="flex items-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                       <MapPin className="text-white" size={16} />
                     </div>
                     <div className="ml-3 flex-grow">
-                      <h4 className="font-medium text-blue-900">Start: Coimbatore Tidal Park</h4>
-                      <p className="text-sm text-blue-700">Your journey begins here</p>
+                      <h4 className="font-medium text-blue-900">Start: {currentLocation.name}</h4>
+                      <p className="text-sm text-blue-700">{currentLocation.district}, {currentLocation.state}</p>
+                      <p className="text-xs text-blue-600">{currentLocation.description}</p>
                     </div>
                     <div className="text-right text-sm text-blue-600">
                       <div>{routeSettings.startTime}</div>
@@ -768,6 +913,20 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                     <div className="text-sm text-purple-800">Cities</div>
                   </div>
                 </div>
+
+                {/* Starting Location Info */}
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin className="text-gray-600" size={16} />
+                    <span className="font-medium text-gray-800">Journey Starting Point</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {currentLocation.name}, {currentLocation.district}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    All distances calculated from this location
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -775,8 +934,14 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
 
         {currentView === 'detailed' && optimizedRoute && (
           <DetailedTripPlanner 
-            optimizedRoute={optimizedRoute} 
-            routeSettings={routeSettings}
+            optimizedRoute={{
+              ...optimizedRoute,
+              userLocationId: selectedLocationId // Pass the selected location ID
+            }} 
+            routeSettings={{
+              ...routeSettings,
+              userLocationId: selectedLocationId // Include in route settings
+            }}
           />
         )}
 
@@ -810,12 +975,39 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                 <Loader className="mx-auto mb-4 text-blue-600 animate-spin" size={48} />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Optimizing Your Route</h3>
                 <p className="text-gray-600 mb-4">
-                  Our AI is analyzing {selectedPlaces.length} places to create the perfect itinerary...
+                  Our AI is analyzing {selectedPlaces.length} places to create the perfect itinerary starting from {currentLocation.name}...
                 </p>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
                 </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  Starting location: {currentLocation.name}, {currentLocation.state}
+                </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Location Change Success Message */}
+        {currentView === 'selection' && (
+          <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="text-green-600" size={20} />
+              <div>
+                <h4 className="font-medium text-gray-800">Ready to Plan Your Journey</h4>
+                <p className="text-gray-600 text-sm mt-1">
+                  Starting from {currentLocation.name} in {currentLocation.state}. 
+                  Select your destinations and let our AI optimize your route!
+                </p>
+              </div>
+              {availableLocations.length > 1 && (
+                <button
+                  onClick={() => setShowLocationSelector(true)}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                >
+                  Change Location
+                </button>
+              )}
             </div>
           </div>
         )}
