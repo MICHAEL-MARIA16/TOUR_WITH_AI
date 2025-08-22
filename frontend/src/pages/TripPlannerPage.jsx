@@ -1,4 +1,4 @@
-// Updated TripPlannerPage.jsx with Map Integration and Save Route Removal
+// Updated TripPlannerPage.jsx with Start Live Tracking Button Removed and Map Fixes
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -32,8 +32,6 @@ import {
   validateLocation 
 } from '../utils/locations';
 
-import RealTimeTripTracker from '../components/RealTimeTripTracker';
-
 const TripPlannerPage = ({ isConnected, onRetry }) => {
   const navigate = useNavigate();
   const [places, setPlaces] = useState([]);
@@ -45,8 +43,6 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
   const [optimizationStatus, setOptimizationStatus] = useState(null);
   const [currentView, setCurrentView] = useState('selection');
   const [showDetailedPlan, setShowDetailedPlan] = useState(false);
-  const [showLiveTracking, setShowLiveTracking] = useState(false);
-  const [userLocation, setUserLocation] = useState(null);
 
   // Location Selection State
   const [selectedLocationId, setSelectedLocationId] = useState('coimbatore');
@@ -86,14 +82,16 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     
     // Set initial location data
     const initialLocation = getLocationById(selectedLocationId);
-    setRouteSettings(prev => ({
-      ...prev,
-      userLocationId: selectedLocationId,
-      constraints: {
-        ...prev.constraints,
-        startLocation: initialLocation
-      }
-    }));
+    if (initialLocation) {
+      setRouteSettings(prev => ({
+        ...prev,
+        userLocationId: selectedLocationId,
+        constraints: {
+          ...prev.constraints,
+          startLocation: initialLocation
+        }
+      }));
+    }
   }, [selectedLocationId]);
 
   // Handle location selection
@@ -104,6 +102,11 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     }
 
     const selectedLocation = getLocationById(locationId);
+    if (!selectedLocation) {
+      toast.error('Location data not found');
+      return;
+    }
+
     setSelectedLocationId(locationId);
     setRouteSettings(prev => ({
       ...prev,
@@ -139,7 +142,9 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
       const validPlaces = places.filter(place => {
         const hasValidLocation = place.location && 
           typeof place.location.latitude === 'number' && 
-          typeof place.location.longitude === 'number';
+          typeof place.location.longitude === 'number' &&
+          !isNaN(place.location.latitude) &&
+          !isNaN(place.location.longitude);
         const hasRequiredData = place.name && place.id && place.averageVisitDuration;
         return hasValidLocation && hasRequiredData;
       });
@@ -187,13 +192,18 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
       return;
     }
 
+    const currentLocation = getLocationById(selectedLocationId);
+    if (!currentLocation) {
+      toast.error('Invalid starting location selected');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setOptimizedRoute(null);
     setOptimizationStatus('running');
     setCurrentView('results');
 
-    const currentLocation = getLocationById(selectedLocationId);
     console.log('🤖 Starting algorithm-based optimization');
     console.log(`📍 Places: ${selectedPlaces.length}`);
     console.log(`🏠 Starting from: ${currentLocation.name}`);
@@ -265,7 +275,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     }
   }, [selectedPlaces, routeSettings, selectedLocationId]);
 
-  // Handle view on map
+  // Handle view on map - Fixed with proper coordinate validation
   const handleViewOnMap = () => {
     if (!optimizedRoute || !optimizedRoute.route) {
       toast.error('No optimized route available to display on map');
@@ -273,24 +283,44 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
     }
 
     const currentLocation = getLocationById(selectedLocationId);
-    
+    if (!currentLocation || !currentLocation.latitude || !currentLocation.longitude) {
+      toast.error('Starting location coordinates not available');
+      return;
+    }
+
+    // Validate all route places have valid coordinates
+    const validRoutes = optimizedRoute.route.filter(place => 
+      place.location && 
+      typeof place.location.latitude === 'number' && 
+      typeof place.location.longitude === 'number' &&
+      !isNaN(place.location.latitude) &&
+      !isNaN(place.location.longitude)
+    );
+
+    if (validRoutes.length === 0) {
+      toast.error('No valid coordinates found in route places');
+      return;
+    }
+
     // Prepare map data with starting location and optimized route
     const mapData = {
       startLocation: {
         id: 'start-location',
         name: currentLocation.name,
         location: {
-          latitude: currentLocation.latitude,
-          longitude: currentLocation.longitude
+          latitude: parseFloat(currentLocation.latitude),
+          longitude: parseFloat(currentLocation.longitude)
         },
         isStartLocation: true,
         description: currentLocation.description
       },
-      optimizedRoute: optimizedRoute.route,
+      optimizedRoute: validRoutes,
       routeSettings: routeSettings,
       algorithm: optimizedRoute.algorithm,
       metrics: optimizedRoute.metrics
     };
+
+    console.log('🗺️ Map data prepared:', mapData);
 
     // Store in session storage for map page access
     sessionStorage.setItem('tripMapData', JSON.stringify(mapData));
@@ -330,6 +360,25 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-xl w-full">
           <ConnectionStatus isConnected={isConnected} onRetry={onRetry} />
+        </div>
+      </div>
+    );
+  }
+
+  // Safety check for current location
+  if (!currentLocation) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-xl w-full text-center">
+          <AlertCircle className="mx-auto mb-4 text-red-500" size={48} />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Location Data Error</h2>
+          <p className="text-gray-600 mb-4">Unable to load starting location data. Please refresh the page.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Refresh Page
+          </button>
         </div>
       </div>
     );
@@ -402,6 +451,9 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                     {currentLocation.name} - {currentLocation.district}, {currentLocation.state}
                   </p>
                   <p className="text-sm text-blue-600">{currentLocation.description}</p>
+                  <p className="text-xs text-blue-500">
+                    Coordinates: {currentLocation.latitude}, {currentLocation.longitude}
+                  </p>
                 </div>
               </div>
               {currentView === 'selection' && (
@@ -442,6 +494,9 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                               <h6 className="font-medium">{location.name}</h6>
                               <p className="text-sm text-gray-600">{location.district}, {location.state}</p>
                               <p className="text-xs text-gray-500 mt-1">{location.description}</p>
+                              <p className="text-xs text-gray-400">
+                                {location.latitude}, {location.longitude}
+                              </p>
                             </div>
                             {selectedLocationId === location.id && (
                               <CheckCircle className="text-blue-600 flex-shrink-0" size={20} />
@@ -489,15 +544,6 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
               Detailed Plan
             </button>
           </div>
-
-          {currentView === 'results' && optimizedRoute && showLiveTracking && (
-            <div className="mt-6">
-              <RealTimeTripTracker 
-                optimizedRoute={optimizedRoute}
-                onLocationUpdate={setUserLocation}
-              />
-            </div>
-          )}
 
           {/* Algorithm Status */}
           {optimizationStatus && currentView !== 'detailed' && (
@@ -586,6 +632,9 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                 </p>
                 <p className="text-xs text-blue-600 mt-1">
                   {currentLocation.description}
+                </p>
+                <p className="text-xs text-blue-500 mt-1">
+                  Coordinates: {currentLocation.latitude}, {currentLocation.longitude}
                 </p>
               </div>
             </div>
@@ -767,7 +816,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                 {/* Route Summary */}
                 <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                   <h3 className="font-semibold text-green-800 mb-2">
-                    🧠 {optimizedRoute.algorithm || 'AI Algorithm'} Results
+                    {optimizedRoute.algorithm || 'AI Algorithm'} Results
                   </h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
@@ -880,7 +929,7 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                 </div>
               )}
 
-              {/* Quick Actions - Removed Save Route, Updated View on Map */}
+              {/* Quick Actions - Removed Start Live Tracking */}
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
                 
@@ -899,14 +948,6 @@ const TripPlannerPage = ({ isConnected, onRetry }) => {
                   >
                     <MapPin size={18} />
                     View Route on Map
-                  </button>
-
-                  <button
-                    onClick={() => setShowLiveTracking(!showLiveTracking)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition-all"
-                  >
-                    <Navigation size={18} />
-                    {showLiveTracking ? 'Hide' : 'Start'} Live Tracking
                   </button>
 
                   <button

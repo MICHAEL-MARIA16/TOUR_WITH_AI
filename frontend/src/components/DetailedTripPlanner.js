@@ -1,4 +1,4 @@
-// Enhanced DetailedTripPlanner.jsx with AI Algorithm Justification
+// Enhanced DetailedTripPlanner.jsx with AI Algorithm Justification - FIXED
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Brain, 
@@ -232,6 +232,74 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
 
     const explanation = explanations[algorithm] || explanations['advancedGreedy'];
     setAlgorithmExplanation(explanation);
+  };
+
+  // Fixed function to handle View on Map with proper coordinate validation
+  const handleViewOnMap = () => {
+    if (!optimizedRoute || !optimizedRoute.route || optimizedRoute.route.length === 0) {
+      console.error('No optimized route available');
+      alert('No optimized route available to display on map');
+      return;
+    }
+
+    // Validate that all places have valid coordinates
+    const invalidPlaces = optimizedRoute.route.filter(place => {
+      const lat = place.location?.latitude;
+      const lng = place.location?.longitude;
+      return !lat || !lng || isNaN(lat) || isNaN(lng);
+    });
+
+    if (invalidPlaces.length > 0) {
+      console.error('Invalid coordinates found in places:', invalidPlaces);
+      alert('Some places have invalid coordinates. Cannot display on map.');
+      return;
+    }
+
+    // Ensure starting location has valid coordinates
+    const startLocation = optimizedRoute.startingLocation;
+    if (!startLocation || !startLocation.latitude || !startLocation.longitude || 
+        isNaN(startLocation.latitude) || isNaN(startLocation.longitude)) {
+      console.error('Invalid starting location coordinates:', startLocation);
+      alert('Starting location has invalid coordinates. Cannot display on map.');
+      return;
+    }
+
+    // Prepare map data with validated coordinates
+    const mapData = {
+      startLocation: {
+        id: 'start-location',
+        name: startLocation.name,
+        location: {
+          latitude: parseFloat(startLocation.latitude),
+          longitude: parseFloat(startLocation.longitude)
+        },
+        isStartLocation: true,
+        description: startLocation.description
+      },
+      optimizedRoute: optimizedRoute.route.map(place => ({
+        ...place,
+        location: {
+          latitude: parseFloat(place.location.latitude),
+          longitude: parseFloat(place.location.longitude)
+        }
+      })),
+      routeSettings: routeSettings,
+      algorithm: optimizedRoute.algorithm,
+      metrics: optimizedRoute.metrics
+    };
+
+    // Store in session storage for map page access
+    try {
+      sessionStorage.setItem('tripMapData', JSON.stringify(mapData));
+      
+      // Navigate to map page with trip mode
+      window.open('/map?mode=trip', '_blank');
+      
+      console.log('Opening route on map with validated data');
+    } catch (error) {
+      console.error('Failed to store map data:', error);
+      alert('Failed to prepare map data');
+    }
   };
 
   // Rest of the existing helper functions remain the same...
@@ -994,17 +1062,16 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
         )}
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons - REMOVED START TRIP BUTTON */}
       <div className="border-t bg-gray-50 p-6">
         <div className="flex flex-wrap gap-3 justify-between items-center">
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <button 
+              onClick={handleViewOnMap}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
               <MapIcon size={16} />
               View on Map
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-              <CheckCircle size={16} />
-              Start Trip
             </button>
           </div>
           <div className="flex gap-3">
