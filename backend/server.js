@@ -28,7 +28,7 @@ app.use(helmet());
 // Enhanced rate limiting
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
-  max: 100,
+  max: 200,
   message: {
     error: 'Too many requests from this IP, please try again later.',
     retryAfter: '15 minutes'
@@ -39,7 +39,7 @@ const generalLimiter = rateLimit({
 
 const intensiveLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100, 
+  max: 25, 
   message: {
     error: 'Too many optimization requests. Please try again later.',
     retryAfter: '15 minutes'
@@ -69,23 +69,29 @@ app.use((req, res, next) => {
 });
 
 // Apply general rate limiting to all API routes
-app.use('/api/', rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
-  }
-}));
+//app.use('/api/', rateLimit({
+  //windowMs: 15 * 60 * 1000,
+  //max: 200,
+  //message: {
+    //error: 'Too many requests from this IP, please try again later.',
+    //retryAfter: '15 minutes'
+ // }
+//}));
 
 // Apply intensive rate limiting only to specific optimization endpoints
-app.use('/api/trips/generate', intensiveLimiter);
-app.use('/api/trips/optimize', intensiveLimiter);
-app.use('/api/trips/matrix', intensiveLimiter);
-app.use('/api/routes/optimize', intensiveLimiter);
-app.use('/api/routes/matrix', intensiveLimiter);
-
+app.use('/api/trips', intensiveLimiter, tripRoutes);
+app.use('/api/routes', intensiveLimiter, routeRoutes);
 app.set('trust proxy', 1);
+
+// --- ✅ ADD THIS CODE BLOCK HERE ---
+// Root URL welcome message to confirm the server is running
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to the Tour With AI API!',
+    status: 'Server is running successfully.',
+    documentation: '/api/docs'
+  });
+});
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
