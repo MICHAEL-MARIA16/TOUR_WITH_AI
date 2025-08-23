@@ -3,9 +3,10 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 // API Configuration
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://tour-with-ai-16.onrender.com'
-  : 'http://localhost:5000/api';
+// src/services/api.js
+
+// CORRECTED API Configuration
+const API_BASE_URL = process.env.REACT_APP-URL || 'http://localhost:5000/api';
 
 const API_TIMEOUT = 30000; // 30 seconds
 const MAX_RETRIES = 3;
