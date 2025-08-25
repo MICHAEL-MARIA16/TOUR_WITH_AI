@@ -1,3 +1,4049 @@
+in this page i need to show extra details like the start your trip time , by this time you will reach this destination the the important thing to do there and how much time to spend there,wht to eat , how much budget needed ,whether photography is allowed or not ,when to leave the location ,,amenities, parking lot facility,indian foreigner charges ,best time to visit, type of transport I should avail, any special things in that location , what gifts to buy and below each location i need these and more details in a detailed manner use gemini to generate these and in a neat readable format keep it like a drop down when i touch your plan button those details should be shown and keep that button below each place after optimization
+---
+// backend/utils/seedDatabase.js
+require('dotenv').config();
+const connectDB = require('../config/database');
+const Place = require('../models/Place');
+
+// 20 Curated South Indian Tourist Places
+const southIndianPlaces = [
+  {
+    id: 'meenakshi-temple-madurai',
+    name: 'Meenakshi Amman Temple',
+    description: 'A historic Hindu temple dedicated to Goddess Meenakshi, famous for its stunning Dravidian architecture with intricately carved towers and vibrant sculptures. One of the most important temples in Tamil Nadu.',
+    location: {
+      latitude: 9.9195,
+      longitude: 78.1193
+    },
+    address: 'Madurai Main, Madurai, Tamil Nadu 625001',
+    city: 'Madurai',
+    state: 'Tamil Nadu',
+    category: 'temple',
+    openingHours: {
+      monday: { open: '05:00', close: '22:00' },
+      tuesday: { open: '05:00', close: '22:00' },
+      wednesday: { open: '05:00', close: '22:00' },
+      thursday: { open: '05:00', close: '22:00' },
+      friday: { open: '05:00', close: '22:00' },
+      saturday: { open: '05:00', close: '22:00' },
+      sunday: { open: '05:00', close: '22:00' }
+    },
+    averageVisitDuration: 120,
+    entryFee: {
+      indian: 0,
+      foreign: 50
+    },
+    amenities: ['Parking', 'Guided Tours', 'Photography', 'Shoe Storage', 'Temple Shop'],
+    bestTimeToVisit: ['morning', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['hindu temple', 'architecture', 'cultural heritage', 'dravidian style', 'goddess meenakshi'],
+    rating: 4.8,
+    isActive: true
+  },
+  {
+    id: 'mysore-palace-karnataka',
+    name: 'Mysore Palace',
+    description: 'The official residence of the Wadiyar dynasty and the kingdom of Mysore, known for its Indo-Saracenic architecture. The palace is illuminated on Sundays and during festivals, creating a magical spectacle.',
+    location: {
+      latitude: 12.3051,
+      longitude: 76.6551
+    },
+    address: 'Sayyaji Rao Road, Mysuru, Karnataka 570001',
+    city: 'Mysore',
+    state: 'Karnataka',
+    category: 'palace',
+    openingHours: {
+      monday: { open: '10:00', close: '17:30' },
+      tuesday: { open: '10:00', close: '17:30' },
+      wednesday: { open: '10:00', close: '17:30' },
+      thursday: { open: '10:00', close: '17:30' },
+      friday: { open: '10:00', close: '17:30' },
+      saturday: { open: '10:00', close: '17:30' },
+      sunday: { open: '10:00', close: '17:30' }
+    },
+    averageVisitDuration: 90,
+    entryFee: {
+      indian: 70,
+      foreign: 200
+    },
+    amenities: ['Audio Guide', 'Museum', 'Gift Shop', 'Parking', 'Cafeteria'],
+    bestTimeToVisit: ['morning', 'afternoon'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['royal palace', 'indo-saracenic architecture', 'wadiyar dynasty', 'illumination'],
+    rating: 4.6,
+    isActive: true
+  },
+  {
+    id: 'ooty-hill-station-tamilnadu',
+    name: 'Ooty (Udhagamandalam)',
+    description: 'The "Queen of Hill Stations" in the Nilgiri Mountains, famous for its tea gardens, botanical gardens, and toy train. A perfect hill retreat with pleasant climate year-round.',
+    location: {
+      latitude: 11.4064,
+      longitude: 76.6932
+    },
+    address: 'Udhagamandalam, The Nilgiris, Tamil Nadu 643001',
+    city: 'Ooty',
+    state: 'Tamil Nadu',
+    category: 'hill-station',
+    openingHours: {
+      monday: { open: '00:00', close: '23:59' },
+      tuesday: { open: '00:00', close: '23:59' },
+      wednesday: { open: '00:00', close: '23:59' },
+      thursday: { open: '00:00', close: '23:59' },
+      friday: { open: '00:00', close: '23:59' },
+      saturday: { open: '00:00', close: '23:59' },
+      sunday: { open: '00:00', close: '23:59' }
+    },
+    averageVisitDuration: 480, // Full day
+    entryFee: {
+      indian: 0,
+      foreign: 0
+    },
+    amenities: ['Hotels', 'Restaurants', 'Toy Train', 'Botanical Garden', 'Lake', 'Shopping'],
+    bestTimeToVisit: ['morning', 'afternoon', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['hill station', 'tea gardens', 'nilgiri mountains', 'toy train', 'botanical garden'],
+    rating: 4.4,
+    isActive: true
+  },
+  {
+    id: 'hampi-karnataka-heritage',
+    name: 'Hampi',
+    description: 'UNESCO World Heritage Site showcasing the ruins of Vijayanagara Empire. Ancient temples, royal complexes, and boulder landscapes create a unique historical experience.',
+    location: {
+      latitude: 15.3350,
+      longitude: 76.4600
+    },
+    address: 'Hampi, Vijayanagara, Karnataka 583239',
+    city: 'Hampi',
+    state: 'Karnataka',
+    category: 'heritage',
+    openingHours: {
+      monday: { open: '06:00', close: '18:00' },
+      tuesday: { open: '06:00', close: '18:00' },
+      wednesday: { open: '06:00', close: '18:00' },
+      thursday: { open: '06:00', close: '18:00' },
+      friday: { open: '06:00', close: '18:00' },
+      saturday: { open: '06:00', close: '18:00' },
+      sunday: { open: '06:00', close: '18:00' }
+    },
+    averageVisitDuration: 360, // 6 hours
+    entryFee: {
+      indian: 40,
+      foreign: 600
+    },
+    amenities: ['Archaeological Museum', 'Guided Tours', 'Coracle Rides', 'Bicycle Rental', 'Local Guides'],
+    bestTimeToVisit: ['morning', 'afternoon'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['unesco world heritage', 'vijayanagara empire', 'ancient ruins', 'historical site'],
+    rating: 4.7,
+    isActive: true
+  },
+  {
+    id: 'marina-beach-chennai',
+    name: 'Marina Beach',
+    description: 'World\'s second longest urban beach stretching 13km along the Bay of Bengal. Popular for evening walks, local food stalls, and cultural activities.',
+    location: {
+      latitude: 13.0487,
+      longitude: 80.2785
+    },
+    address: 'Marina Beach, Chennai, Tamil Nadu 600006',
+    city: 'Chennai',
+    state: 'Tamil Nadu',
+    category: 'beach',
+    openingHours: {
+      monday: { open: '05:00', close: '21:00' },
+      tuesday: { open: '05:00', close: '21:00' },
+      wednesday: { open: '05:00', close: '21:00' },
+      thursday: { open: '05:00', close: '21:00' },
+      friday: { open: '05:00', close: '21:00' },
+      saturday: { open: '05:00', close: '21:00' },
+      sunday: { open: '05:00', close: '21:00' }
+    },
+    averageVisitDuration: 150,
+    entryFee: {
+      indian: 0,
+      foreign: 0
+    },
+    amenities: ['Food Stalls', 'Horse Riding', 'Parking', 'Rest Areas', 'Police Station'],
+    bestTimeToVisit: ['evening', 'morning'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['urban beach', 'bay of bengal', 'evening walks', 'street food'],
+    rating: 4.2,
+    isActive: true
+  },
+  {
+    id: 'backwaters-alleppey-kerala',
+    name: 'Backwaters of Alleppey',
+    description: 'Serene network of canals, rivers, and lakes lined with coconut trees. Famous for houseboat cruises offering a unique glimpse into Kerala\'s rural life.',
+    location: {
+      latitude: 9.4981,
+      longitude: 76.3388
+    },
+    address: 'Alappuzha, Kerala 688001',
+    city: 'Alleppey',
+    state: 'Kerala',
+    category: 'nature',
+    openingHours: {
+      monday: { open: '06:00', close: '18:00' },
+      tuesday: { open: '06:00', close: '18:00' },
+      wednesday: { open: '06:00', close: '18:00' },
+      thursday: { open: '06:00', close: '18:00' },
+      friday: { open: '06:00', close: '18:00' },
+      saturday: { open: '06:00', close: '18:00' },
+      sunday: { open: '06:00', close: '18:00' }
+    },
+    averageVisitDuration: 480, // 8 hours (full day cruise)
+    entryFee: {
+      indian: 500,
+      foreign: 1000
+    },
+    amenities: ['Houseboat Cruises', 'Traditional Meals', 'Fishing', 'Bird Watching', 'Village Tours'],
+    bestTimeToVisit: ['morning', 'afternoon'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['backwaters', 'houseboat cruise', 'kerala canals', 'rural life'],
+    rating: 4.5,
+    isActive: true
+  },
+  {
+    id: 'munnar-tea-gardens-kerala',
+    name: 'Munnar Tea Gardens',
+    description: 'Picturesque hill station known for endless tea plantations, misty hills, and pleasant climate. Home to the endangered Nilgiri Tahr and exotic flora.',
+    location: {
+      latitude: 10.0889,
+      longitude: 77.0595
+    },
+    address: 'Munnar, Idukki, Kerala 685612',
+    city: 'Munnar',
+    state: 'Kerala',
+    category: 'hill-station',
+    openingHours: {
+      monday: { open: '24:00', close: '24:00' },
+      tuesday: { open: '24:00', close: '24:00' },
+      wednesday: { open: '24:00', close: '24:00' },
+      thursday: { open: '24:00', close: '24:00' },
+      friday: { open: '24:00', close: '24:00' },
+      saturday: { open: '24:00', close: '24:00' },
+      sunday: { open: '24:00', close: '24:00' }
+    },
+    averageVisitDuration: 360,
+    entryFee: {
+      indian: 0,
+      foreign: 0
+    },
+    amenities: ['Tea Museum', 'Trekking Trails', 'Wildlife Sanctuary', 'Resorts', 'Spice Gardens'],
+    bestTimeToVisit: ['morning', 'afternoon'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['tea plantations', 'hill station', 'western ghats', 'nilgiri tahr'],
+    rating: 4.6,
+    isActive: true
+  },
+  {
+    id: 'charminar-hyderabad-telangana',
+    name: 'Charminar',
+    description: 'Iconic 16th-century mosque and monument in Hyderabad\'s old city. Symbol of Hyderabad with four grand arches and minarets, surrounded by bustling bazaars.',
+    location: {
+      latitude: 17.3616,
+      longitude: 78.4747
+    },
+    address: 'Charminar Road, Char Kaman, Ghansi Bazaar, Hyderabad, Telangana 500002',
+    city: 'Hyderabad',
+    state: 'Telangana',
+    category: 'heritage',
+    openingHours: {
+      monday: { open: '09:30', close: '17:30' },
+      tuesday: { open: '09:30', close: '17:30' },
+      wednesday: { open: '09:30', close: '17:30' },
+      thursday: { open: '09:30', close: '17:30' },
+      friday: { open: '14:00', close: '17:30' },
+      saturday: { open: '09:30', close: '17:30' },
+      sunday: { open: '09:30', close: '17:30' }
+    },
+    averageVisitDuration: 90,
+    entryFee: {
+      indian: 25,
+      foreign: 300
+    },
+    amenities: ['Laad Bazaar', 'Photography', 'Local Shopping', 'Street Food', 'Guided Tours'],
+    bestTimeToVisit: ['morning', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['qutb shahi architecture', 'hyderabad symbol', 'heritage monument', 'bazaars'],
+    rating: 4.3,
+    isActive: true
+  },
+  {
+    id: 'golconda-fort-hyderabad',
+    name: 'Golconda Fort',
+    description: 'Magnificent medieval fortress known for its acoustic architecture and diamond trade history. Offers panoramic views of Hyderabad city.',
+    location: {
+      latitude: 17.3833,
+      longitude: 78.4011
+    },
+    address: 'Ibrahim Bagh, Hyderabad, Telangana 500008',
+    city: 'Hyderabad',
+    state: 'Telangana',
+    category: 'fort',
+    openingHours: {
+      monday: { open: '09:00', close: '17:30' },
+      tuesday: { open: '09:00', close: '17:30' },
+      wednesday: { open: '09:00', close: '17:30' },
+      thursday: { open: '09:00', close: '17:30' },
+      friday: { open: '09:00', close: '17:30' },
+      saturday: { open: '09:00', close: '17:30' },
+      sunday: { open: '09:00', close: '17:30' }
+    },
+    averageVisitDuration: 180,
+    entryFee: {
+      indian: 25,
+      foreign: 300
+    },
+    amenities: ['Sound and Light Show', 'Archaeological Museum', 'Parking', 'Guided Tours', 'Photography'],
+    bestTimeToVisit: ['morning', 'afternoon', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['medieval fort', 'qutb shahi dynasty', 'acoustic architecture', 'diamond trade'],
+    rating: 4.4,
+    isActive: true
+  },
+  {
+    id: 'rameshwaram-temple-tamilnadu',
+    name: 'Ramanathaswamy Temple',
+    description: 'One of the twelve Jyotirlinga temples dedicated to Lord Shiva, located on Rameswaram island. Famous for its magnificent corridors and sacred significance.',
+    location: {
+      latitude: 9.2881,
+      longitude: 79.3129
+    },
+    address: 'Rameswaram, Tamil Nadu 623526',
+    city: 'Rameswaram',
+    state: 'Tamil Nadu',
+    category: 'temple',
+    openingHours: {
+      monday: { open: '05:00', close: '13:00' },
+      tuesday: { open: '05:00', close: '13:00' },
+      wednesday: { open: '05:00', close: '13:00' },
+      thursday: { open: '05:00', close: '13:00' },
+      friday: { open: '05:00', close: '13:00' },
+      saturday: { open: '05:00', close: '13:00' },
+      sunday: { open: '05:00', close: '13:00' }
+    },
+    averageVisitDuration: 120,
+    entryFee: {
+      indian: 0,
+      foreign: 50
+    },
+    amenities: ['Sacred Tanks', 'Pilgrimage Facilities', 'Temple Shop', 'Parking', 'Shoe Storage'],
+    bestTimeToVisit: ['morning', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['jyotirlinga', 'lord shiva', 'pilgrimage site', 'sacred corridors'],
+    rating: 4.7,
+    isActive: true
+  },
+  {
+    id: 'mahabalipuram-shore-temple',
+    name: 'Shore Temple, Mahabalipuram',
+    description: 'UNESCO World Heritage site featuring ancient rock-cut temples and sculptures from the 7th century. Exemplifies Pallava architecture facing the Bay of Bengal.',
+    location: {
+      latitude: 12.6269,
+      longitude: 80.1992
+    },
+    address: 'Mahabalipuram, Chengalpattu, Tamil Nadu 603104',
+    city: 'Mahabalipuram',
+    state: 'Tamil Nadu',
+    category: 'heritage',
+    openingHours: {
+      monday: { open: '06:00', close: '18:00' },
+      tuesday: { open: '06:00', close: '18:00' },
+      wednesday: { open: '06:00', close: '18:00' },
+      thursday: { open: '06:00', close: '18:00' },
+      friday: { open: '06:00', close: '18:00' },
+      saturday: { open: '06:00', close: '18:00' },
+      sunday: { open: '06:00', close: '18:00' }
+    },
+    averageVisitDuration: 180,
+    entryFee: {
+      indian: 30,
+      foreign: 500
+    },
+    amenities: ['Archaeological Museum', 'Beach Access', 'Photography', 'Guided Tours', 'Parking'],
+    bestTimeToVisit: ['morning', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['unesco world heritage', 'pallava architecture', 'rock-cut temples', 'shore temple'],
+    rating: 4.5,
+    isActive: true
+  },
+  {
+    id: 'coorg-coffee-plantations-karnataka',
+    name: 'Coorg (Kodagu)',
+    description: 'Scotland of India, famous for coffee plantations, mist-covered hills, and unique Coorgi culture. Perfect destination for nature lovers and adventure enthusiasts.',
+    location: {
+      latitude: 12.3375,
+      longitude: 75.8069
+    },
+    address: 'Madikeri, Kodagu, Karnataka 571201',
+    city: 'Coorg',
+    state: 'Karnataka',
+    category: 'hill-station',
+    openingHours: {
+      monday: { open: '06:00', close: '18:00' },
+      tuesday: { open: '06:00', close: '18:00' },
+      wednesday: { open: '06:00', close: '18:00' },
+      thursday: { open: '06:00', close: '18:00' },
+      friday: { open: '06:00', close: '18:00' },
+      saturday: { open: '06:00', close: '18:00' },
+      sunday: { open: '06:00', close: '18:00' }
+    },
+    averageVisitDuration: 480, // Full day
+    entryFee: {
+      indian: 0,
+      foreign: 0
+    },
+    amenities: ['Coffee Estate Tours', 'Trekking', 'Waterfalls', 'Wildlife Sanctuary', 'Homestays'],
+    bestTimeToVisit: ['morning', 'afternoon'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['coffee plantations', 'western ghats', 'coorgi culture', 'hill station'],
+    rating: 4.5,
+    isActive: true
+  },
+  {
+    id: 'kanyakumari-southern-tip',
+    name: 'Kanyakumari',
+    description: 'Southernmost tip of mainland India where Arabian Sea, Indian Ocean, and Bay of Bengal meet. Famous for spectacular sunrise and sunset views.',
+    location: {
+      latitude: 8.0883,
+      longitude: 77.5385
+    },
+    address: 'Kanyakumari, Tamil Nadu 629702',
+    city: 'Kanyakumari',
+    state: 'Tamil Nadu',
+    category: 'beach',
+    openingHours: {
+      monday: { open: '04:00', close: '20:00' },
+      tuesday: { open: '04:00', close: '20:00' },
+      wednesday: { open: '04:00', close: '20:00' },
+      thursday: { open: '04:00', close: '20:00' },
+      friday: { open: '04:00', close: '20:00' },
+      saturday: { open: '04:00', close: '20:00' },
+      sunday: { open: '04:00', close: '20:00' }
+    },
+    averageVisitDuration: 240,
+    entryFee: {
+      indian: 0,
+      foreign: 0
+    },
+    amenities: ['Vivekananda Rock Memorial', 'Thiruvalluvar Statue', 'Ferry Services', 'Sunset Point', 'Beach'],
+    bestTimeToVisit: ['morning', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['southernmost point', 'confluence of seas', 'sunrise sunset', 'vivekananda memorial'],
+    rating: 4.3,
+    isActive: true
+  },
+  {
+    id: 'bandipur-wildlife-sanctuary',
+    name: 'Bandipur National Park',
+    description: 'Premier wildlife sanctuary in Karnataka, part of the Nilgiri Biosphere Reserve. Home to tigers, elephants, and diverse wildlife in deciduous forests.',
+    location: {
+      latitude: 11.7401,
+      longitude: 76.5026
+    },
+    address: 'Bandipur, Chamarajanagar, Karnataka 571126',
+    city: 'Bandipur',
+    state: 'Karnataka',
+    category: 'wildlife',
+    openingHours: {
+      monday: { open: '06:30', close: '09:00' },
+      tuesday: { open: '06:30', close: '09:00' },
+      wednesday: { open: '06:30', close: '09:00' },
+      thursday: { open: '06:30', close: '09:00' },
+      friday: { open: '06:30', close: '09:00' },
+      saturday: { open: '06:30', close: '09:00' },
+      sunday: { open: '06:30', close: '09:00' }
+    },
+    averageVisitDuration: 180,
+    entryFee: {
+      indian: 80,
+      foreign: 300
+    },
+    amenities: ['Safari Rides', 'Wildlife Photography', 'Nature Walks', 'Forest Guest House', 'Interpretation Center'],
+    bestTimeToVisit: ['morning'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['wildlife sanctuary', 'tiger reserve', 'nilgiri biosphere', 'safari'],
+    rating: 4.4,
+    isActive: true
+  },
+  {
+    id: 'tirumala-tirupati-temple',
+    name: 'Tirumala Venkateswara Temple',
+    description: 'One of the richest and most visited temples in the world, dedicated to Lord Venkateswara. Located on the seven hills of Tirumala.',
+    location: {
+      latitude: 13.6288,
+      longitude: 79.4192
+    },
+    address: 'Tirumala, Tirupati, Andhra Pradesh 517504',
+    city: 'Tirupati',
+    state: 'Andhra Pradesh',
+    category: 'temple',
+    openingHours: {
+      monday: { open: '02:30', close: '02:00' },
+      tuesday: { open: '02:30', close: '02:00' },
+      wednesday: { open: '02:30', close: '02:00' },
+      thursday: { open: '02:30', close: '02:00' },
+      friday: { open: '02:30', close: '02:00' },
+      saturday: { open: '02:30', close: '02:00' },
+      sunday: { open: '02:30', close: '02:00' }
+    },
+    averageVisitDuration: 300, // 5 hours including waiting
+    entryFee: {
+      indian: 0,
+      foreign: 300
+    },
+    amenities: ['TTD Services', 'Accommodation', 'Prasadam', 'Darshan Booking', 'Hair Donation'],
+    bestTimeToVisit: ['morning', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['lord venkateswara', 'seven hills', 'richest temple', 'pilgrimage'],
+    rating: 4.6,
+    isActive: true
+  },
+  {
+    id: 'wayanad-kerala-hills',
+    name: 'Wayanad',
+    description: 'Pristine hill station in Kerala known for spice plantations, wildlife sanctuaries, and ancient caves. Perfect blend of adventure and tranquility.',
+    location: {
+      latitude: 11.6854,
+      longitude: 76.1320
+    },
+    address: 'Wayanad, Kerala 673121',
+    city: 'Wayanad',
+    state: 'Kerala',
+    category: 'hill-station',
+    openingHours: {
+      monday: { open: '06:00', close: '18:00' },
+      tuesday: { open: '06:00', close: '18:00' },
+      wednesday: { open: '06:00', close: '18:00' },
+      thursday: { open: '06:00', close: '18:00' },
+      friday: { open: '06:00', close: '18:00' },
+      saturday: { open: '06:00', close: '18:00' },
+      sunday: { open: '06:00', close: '18:00' }
+    },
+    averageVisitDuration: 480, // Full day
+    entryFee: {
+      indian: 0,
+      foreign: 0
+    },
+    amenities: ['Spice Gardens', 'Wildlife Sanctuary', 'Trekking Trails', 'Waterfalls', 'Cave Exploration'],
+    bestTimeToVisit: ['morning', 'afternoon'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['spice plantations', 'western ghats', 'wildlife sanctuary', 'edakkal caves'],
+    rating: 4.5,
+    isActive: true
+  },
+  {
+    id: 'pondicherry-french-quarter',
+    name: 'French Quarter, Pondicherry',
+    description: 'Former French colonial settlement with distinctive European architecture, tree-lined streets, and vibrant cafes. Unique blend of Indian and French cultures.',
+    location: {
+      latitude: 11.9416,
+      longitude: 79.8083
+    },
+    address: 'French Quarter, Puducherry 605001',
+    city: 'Pondicherry',
+    state: 'Puducherry',
+    category: 'heritage',
+    openingHours: {
+      monday: { open: '06:00', close: '22:00' },
+      tuesday: { open: '06:00', close: '22:00' },
+      wednesday: { open: '06:00', close: '22:00' },
+      thursday: { open: '06:00', close: '22:00' },
+      friday: { open: '06:00', close: '22:00' },
+      saturday: { open: '06:00', close: '22:00' },
+      sunday: { open: '06:00', close: '22:00' }
+    },
+    averageVisitDuration: 240,
+    entryFee: {
+      indian: 0,
+      foreign: 0
+    },
+    amenities: ['French Cafes', 'Heritage Walks', 'Aurobindo Ashram', 'Beach Promenade', 'Museums'],
+    bestTimeToVisit: ['morning', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['french colonial', 'heritage architecture', 'cultural fusion', 'aurobindo ashram'],
+    rating: 4.2,
+    isActive: true
+  },
+  {
+    id: 'brihadeshwara-temple-thanjavur',
+    name: 'Brihadeeshwarar Temple',
+    description: 'UNESCO World Heritage Site and architectural masterpiece of Chola dynasty. One of the largest temples in India with a towering vimana.',
+    location: {
+      latitude: 10.7829,
+      longitude: 79.1378
+    },
+    address: 'Thanjavur, Tamil Nadu 613007',
+    city: 'Thanjavur',
+    state: 'Tamil Nadu',
+    category: 'temple',
+    openingHours: {
+      monday: { open: '06:00', close: '12:30' },
+      tuesday: { open: '06:00', close: '12:30' },
+      wednesday: { open: '06:00', close: '12:30' },
+      thursday: { open: '06:00', close: '12:30' },
+      friday: { open: '06:00', close: '12:30' },
+      saturday: { open: '06:00', close: '12:30' },
+      sunday: { open: '06:00', close: '12:30' }
+    },
+    averageVisitDuration: 120,
+    entryFee: {
+      indian: 30,
+      foreign: 500
+    },
+    amenities: ['Archaeological Survey', 'Museum', 'Photography', 'Guided Tours', 'Cultural Programs'],
+    bestTimeToVisit: ['morning', 'afternoon'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['unesco world heritage', 'chola architecture', 'big temple', 'lord shiva'],
+    rating: 4.7,
+    isActive: true
+  },
+  {
+    id: 'belur-halebidu-temples',
+    name: 'Belur and Halebidu Temples',
+    description: 'Exquisite Hoysala architecture temples from 12th century. Intricate stone carvings depicting Hindu mythology and celestial dancers.',
+    location: {
+      latitude: 13.1622,
+      longitude: 75.8651
+    },
+    address: 'Belur, Hassan, Karnataka 573115',
+    city: 'Belur',
+    state: 'Karnataka',
+    category: 'temple',
+    openingHours: {
+      monday: { open: '06:00', close: '18:00' },
+      tuesday: { open: '06:00', close: '18:00' },
+      wednesday: { open: '06:00', close: '18:00' },
+      thursday: { open: '06:00', close: '18:00' },
+      friday: { open: '06:00', close: '18:00' },
+      saturday: { open: '06:00', close: '18:00' },
+      sunday: { open: '06:00', close: '18:00' }
+    },
+    averageVisitDuration: 240,
+    entryFee: {
+      indian: 25,
+      foreign: 300
+    },
+    amenities: ['Archaeological Museum', 'Guided Tours', 'Photography', 'Parking', 'Local Handicrafts'],
+    bestTimeToVisit: ['morning', 'afternoon'],
+    kidFriendly: true,
+    wheelchairAccessible: false,
+    tags: ['hoysala architecture', 'stone carvings', 'chennakeshava temple', 'hoysaleswara temple'],
+    rating: 4.6,
+    isActive: true
+  },
+  {
+    id: 'gokarna-karnataka-beaches',
+    name: 'Gokarna Beaches',
+    description: 'Sacred town with pristine beaches and ancient temples. Popular pilgrimage site offering both spiritual and beach experiences.',
+    location: {
+      latitude: 14.5426,
+      longitude: 74.3188
+    },
+    address: 'Gokarna, Uttara Kannada, Karnataka 581326',
+    city: 'Gokarna',
+    state: 'Karnataka',
+    category: 'beach',
+    openingHours: {
+      monday: { open: '05:00', close: '20:00' },
+      tuesday: { open: '05:00', close: '20:00' },
+      wednesday: { open: '05:00', close: '20:00' },
+      thursday: { open: '05:00', close: '20:00' },
+      friday: { open: '05:00', close: '20:00' },
+      saturday: { open: '05:00', close: '20:00' },
+      sunday: { open: '05:00', close: '20:00' }
+    },
+    averageVisitDuration: 300,
+    entryFee: {
+      indian: 0,
+      foreign: 0
+    },
+    amenities: ['Beach Shacks', 'Water Sports', 'Temple Complex', 'Trekking', 'Backpacker Hostels'],
+    bestTimeToVisit: ['morning', 'evening'],
+    kidFriendly: true,
+    wheelchairAccessible: true,
+    tags: ['pristine beaches', 'pilgrimage site', 'mahabaleshwar temple', 'arabian sea'],
+    rating: 4.4,
+    isActive: true
+  }
+];
+
+
+async function seedPlaces() {
+  try {
+    // Clear existing places
+    console.log('🔄 Clearing existing places...');
+    await Place.deleteMany({});
+    
+    // Insert new places
+    console.log('📍 Inserting South Indian places...');
+    const insertedPlaces = await Place.insertMany(southIndianPlaces);
+    
+    console.log(`✅ Successfully inserted ${insertedPlaces.length} places:`);
+    
+    // Display summary by state and category
+    const summary = {};
+    const categoryCount = {};
+    
+    insertedPlaces.forEach(place => {
+      // Count by state
+      if (!summary[place.state]) summary[place.state] = 0;
+      summary[place.state]++;
+      
+      // Count by category
+      if (!categoryCount[place.category]) categoryCount[place.category] = 0;
+      categoryCount[place.category]++;
+      
+      console.log(`  • ${place.name} (${place.city}, ${place.state}) - ${place.category}`);
+    });
+    
+    console.log('\n📊 Summary by State:');
+    Object.entries(summary).forEach(([state, count]) => {
+      console.log(`  ${state}: ${count} places`);
+    });
+    
+    console.log('\n📊 Summary by Category:');
+    Object.entries(categoryCount).forEach(([category, count]) => {
+      console.log(`  ${category}: ${count} places`);
+    });
+    
+    // Create indexes for better performance
+    console.log('\n🔍 Creating database indexes...');
+    await Place.createIndexes();
+    console.log('✅ Indexes created successfully');
+    
+    return insertedPlaces;
+    
+  } catch (error) {
+    console.error('❌ Error seeding places:', error);
+    throw error;
+  }
+}
+
+async function validatePlaces() {
+  try {
+    console.log('\n🔍 Validating inserted places...');
+    
+    const places = await Place.find({});
+    const validationResults = {
+      total: places.length,
+      errors: [],
+      warnings: []
+    };
+    
+    places.forEach(place => {
+      // Validate required fields
+      if (!place.location || !place.location.latitude || !place.location.longitude) {
+        validationResults.errors.push(`${place.name}: Missing or invalid location`);
+      }
+      
+      if (!place.averageVisitDuration || place.averageVisitDuration < 30) {
+        validationResults.warnings.push(`${place.name}: Very short visit duration (${place.averageVisitDuration}min)`);
+      }
+      
+      if (!place.entryFee || (place.entryFee.indian === undefined || place.entryFee.foreign === undefined)) {
+        validationResults.warnings.push(`${place.name}: Missing entry fee information`);
+      }
+      
+      if (!place.rating || place.rating < 1 || place.rating > 5) {
+        validationResults.errors.push(`${place.name}: Invalid rating (${place.rating})`);
+      }
+      
+      // Validate coordinates are within South India bounds
+      if (place.location && place.location.latitude && place.location.longitude) {
+        const lat = place.location.latitude;
+        const lng = place.location.longitude;
+        
+        if (lat < 8 || lat > 20 || lng < 68 || lng > 84) {
+          validationResults.warnings.push(`${place.name}: Coordinates may be outside South India bounds`);
+        }
+      }
+    });
+    
+    console.log(`📊 Validation Results:`);
+    console.log(`  Total places: ${validationResults.total}`);
+    console.log(`  Errors: ${validationResults.errors.length}`);
+    console.log(`  Warnings: ${validationResults.warnings.length}`);
+    
+    if (validationResults.errors.length > 0) {
+      console.log('\n❌ Errors found:');
+      validationResults.errors.forEach(error => console.log(`  • ${error}`));
+    }
+    
+    if (validationResults.warnings.length > 0) {
+      console.log('\n⚠️ Warnings:');
+      validationResults.warnings.forEach(warning => console.log(`  • ${warning}`));
+    }
+    
+    if (validationResults.errors.length === 0) {
+      console.log('✅ All places validated successfully!');
+    }
+    
+    return validationResults;
+    
+  } catch (error) {
+    console.error('❌ Error validating places:', error);
+    throw error;
+  }
+}
+
+async function generateStatistics() {
+  try {
+    console.log('\n📈 Generating statistics...');
+    
+    const [
+      totalPlaces,
+      byState,
+      byCategory,
+      avgRating,
+      freeEntryPlaces,
+      avgVisitDuration,
+      accessiblePlaces,
+      kidFriendlyPlaces
+    ] = await Promise.all([
+      Place.countDocuments(),
+      Place.aggregate([
+        { $group: { _id: '$state', count: { $sum: 1 }, places: { $push: '$name' } } },
+        { $sort: { count: -1 } }
+      ]),
+      Place.aggregate([
+        { $group: { _id: '$category', count: { $sum: 1 }, avgRating: { $avg: '$rating' } } },
+        { $sort: { count: -1 } }
+      ]),
+      Place.aggregate([
+        { $group: { _id: null, avgRating: { $avg: '$rating' } } }
+      ]),
+      Place.countDocuments({ 'entryFee.indian': 0 }),
+      Place.aggregate([
+        { $group: { _id: null, avgDuration: { $avg: '$averageVisitDuration' } } }
+      ]),
+      Place.countDocuments({ wheelchairAccessible: true }),
+      Place.countDocuments({ kidFriendly: true })
+    ]);
+    
+    const stats = {
+      overview: {
+        totalPlaces,
+        averageRating: Number(avgRating[0]?.avgRating?.toFixed(2)) || 0,
+        freeEntryPlaces,
+        averageVisitDuration: Math.round(avgVisitDuration[0]?.avgDuration || 0),
+        accessiblePlaces,
+        kidFriendlyPlaces
+      },
+      byState,
+      byCategory
+    };
+    
+    console.log(`📊 Database Statistics:`);
+    console.log(`  Total Places: ${stats.overview.totalPlaces}`);
+    console.log(`  Average Rating: ${stats.overview.averageRating}/5`);
+    console.log(`  Free Entry Places: ${stats.overview.freeEntryPlaces}`);
+    console.log(`  Average Visit Duration: ${stats.overview.averageVisitDuration} minutes`);
+    console.log(`  Wheelchair Accessible: ${stats.overview.accessiblePlaces}`);
+    console.log(`  Kid Friendly: ${stats.overview.kidFriendlyPlaces}`);
+    
+    console.log(`\n📍 Distribution by State:`);
+    stats.byState.forEach(state => {
+      console.log(`  ${state._id}: ${state.count} places`);
+    });
+    
+    console.log(`\n🏛️ Distribution by Category:`);
+    stats.byCategory.forEach(category => {
+      console.log(`  ${category._id}: ${category.count} places (avg rating: ${category.avgRating.toFixed(1)})`);
+    });
+    
+    return stats;
+    
+  } catch (error) {
+    console.error('❌ Error generating statistics:', error);
+    throw error;
+  }
+}
+
+// Main seeding function
+async function seedDatabase() {
+  try {
+    console.log('🚀 Starting South Indian Places Database Seeding...\n');
+    
+    await connectDB();
+    const places = await seedPlaces();
+    await validatePlaces();
+    await generateStatistics();
+    
+    console.log('\n✅ Database seeding completed successfully!');
+    console.log(`📍 ${places.length} South Indian tourist places are now available in your database.`);
+    console.log('\n🎯 Next Steps:');
+    console.log('  1. Start your backend server: npm run dev');
+    console.log('  2. Test the places API: GET /api/places');
+    console.log('  3. Try route optimization with your favorite places!');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Database seeding failed:', error);
+    process.exit(1);
+  } 
+}
+
+// Export functions for use in other modules
+module.exports = {
+  seedDatabase,
+  seedPlaces,
+  validatePlaces,
+  generateStatistics,
+  southIndianPlaces
+};
+
+// Run seeding if this file is executed directly
+if (require.main === module) {
+  seedDatabase();
+}
+---
+// Updated server.js - Fix CORS Configuration
+
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
+
+const connectDB = require('./config/database');
+
+// Import routes
+const placeRoutes = require('./routes/places');
+const routeRoutes = require('./routes/routes');
+const chatRoutes = require('./routes/chat');
+const tripRoutes = require('./routes/trips');
+const distanceRoutes = require('./routes/distance');
+const mapRoutes = require('./routes/map');
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Connect to MongoDB
+connectDB();
+
+// Security middleware
+app.use(helmet());
+
+// Enhanced rate limiting
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 200,
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const intensiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 25, 
+  message: {
+    error: 'Too many optimization requests. Please try again later.',
+    retryAfter: '15 minutes'
+  }
+});
+
+// ✅ FIXED CORS CONFIGURATION
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001', 
+      'https://tour-with-ai-16.vercel.app',
+      'https://tour-with-ai.vercel.app',
+      // Add your production domain here
+      process.env.FRONTEND_URL
+    ].filter(Boolean); // Remove any undefined values
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      // For development, be more permissive
+      if (process.env.NODE_ENV === 'development') {
+        return callback(null, true);
+      }
+      
+      console.log('❌ CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+app.use(cors(corsOptions));
+
+// Body parsing middleware - MUST come before routes
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  const ip = req.ip || req.connection.remoteAddress;
+  const origin = req.get('origin') || 'no-origin';
+  console.log(`[${timestamp}] ${req.method} ${req.url} - IP: ${ip} - Origin: ${origin}`);
+  next();
+});
+
+// Apply intensive rate limiting only to specific optimization endpoints
+app.use('/api/trips', intensiveLimiter, tripRoutes);
+app.use('/api/routes', intensiveLimiter, routeRoutes);
+app.set('trust proxy', 1);
+
+// Root URL welcome message to confirm the server is running
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to the Tour With AI API!',
+    status: 'Server is running successfully.',
+    documentation: '/api/docs',
+    cors: {
+      enabled: true,
+      allowedOrigins: process.env.NODE_ENV === 'development' 
+        ? ['localhost:3000', 'localhost:3001', 'vercel.app domains'] 
+        : ['vercel.app domains'],
+      developmentMode: process.env.NODE_ENV === 'development'
+    }
+  });
+});
+
+// Health check endpoint with enhanced CORS info
+app.get('/api/health', async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    const dbStatus = mongoose.connection.readyState;
+    
+    let placeCount = 0;
+    try {
+      const Place = require('./models/Place');
+      placeCount = await Place.countDocuments();
+    } catch (dbError) {
+      console.log('Database query failed:', dbError.message);
+    }
+    
+    res.status(200).json({
+      status: 'OK',
+      success: true,
+      database: dbStatus === 1 ? 'connected' : 'disconnected',
+      placesInDatabase: placeCount,
+      cors: {
+        origin: req.get('origin') || 'no-origin',
+        allowed: true,
+        environment: process.env.NODE_ENV || 'development'
+      },
+      features: {
+        leafletMaps: true,
+        openStreetMap: true,
+        freeMapping: true,
+        noApiKeysRequired: true
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'ERROR', 
+      success: false, 
+      message: error.message 
+    });
+  }
+});
+
+// Mount API routes
+app.use('/api/places', placeRoutes);
+app.use('/api/routes', routeRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/trips', tripRoutes);
+app.use('/api/distance', distanceRoutes);
+app.use('/api/map', mapRoutes);
+
+// API documentation endpoint
+app.get('/api/docs', (req, res) => {
+  res.status(200).json({
+    title: 'TourWithAI Backend API Documentation',
+    version: '2.1.0',
+    description: 'AI-powered travel planning with Leaflet.js + OpenStreetMap integration',
+    baseUrl: `${req.protocol}://${req.get('host')}/api`,
+    cors: {
+      enabled: true,
+      allowedOrigins: process.env.NODE_ENV === 'development' 
+        ? ['http://localhost:3000', 'http://localhost:3001', 'https://tour-with-ai-16.vercel.app']
+        : ['https://tour-with-ai-16.vercel.app'],
+      developmentMode: process.env.NODE_ENV === 'development'
+    },
+    mappingTechnology: {
+      frontend: 'Leaflet.js',
+      tiles: 'OpenStreetMap',
+      cost: 'Free',
+      features: ['No API keys required', 'Unlimited requests', 'Open source']
+    },
+    endpoints: {
+      places: {
+        base: '/places',
+        description: 'Tourist place data and search',
+        methods: ['GET'],
+        examples: [
+          'GET /places - Get all places with filters',
+          'GET /places/category/temple - Get temples',
+          'GET /places/nearby?latitude=12.9716&longitude=77.5946 - Get nearby places'
+        ]
+      },
+      map: {
+        base: '/map',
+        description: 'Leaflet.js + OpenStreetMap integration endpoints',
+        methods: ['GET', 'POST'],
+        examples: [
+          'GET /map/bounds - Get map bounds for places',
+          'GET /map/places-in-bounds - Get places in viewport',
+          'POST /map/optimize-route - Get optimized route coordinates',
+          'GET /map/clustered-markers - Get clustered markers',
+          'GET /map/heatmap-data - Get heatmap data',
+          'GET /map/geocode?q=Bangalore - Geocode address',
+          'GET /map/reverse-geocode?lat=12.9716&lng=77.5946 - Reverse geocode',
+          'GET /map/config - Get map configuration'
+        ]
+      },
+      trips: {
+        base: '/trips',
+        description: 'Advanced trip planning with AI optimization',
+        methods: ['GET', 'POST', 'PUT', 'DELETE'],
+        examples: [
+          'GET /trips - Get all trips for user',
+          'GET /trips/:id - Get specific trip',
+          'POST /trips/generate - Generate new trip',
+          'POST /trips/optimize - Optimize trip places',
+          'GET /trips/templates - Get trip templates',
+          'PUT /trips/:id - Update trip',
+          'DELETE /trips/:id - Delete trip'
+        ]
+      },
+      routes: {
+        base: '/routes',
+        description: 'Legacy route optimization',
+        methods: ['GET', 'POST'],
+        examples: [
+          'POST /routes/optimize - Basic route optimization',
+          'GET /routes/suggestions - Get route suggestions'
+        ]
+      },
+      chat: {
+        base: '/chat',
+        description: 'AI chat assistant for travel planning',
+        methods: ['POST'],
+        examples: [
+          'POST /chat - Chat with AI assistant'
+        ]
+      },
+      distance: {
+        base: '/distance',
+        description: 'Distance and travel time calculations',
+        methods: ['POST'],
+        examples: [
+          'POST /distance/matrix - Calculate distance matrix'
+        ]
+      }
+    }
+  });
+});
+
+// Test endpoint for Leaflet integration
+app.get('/api/test/leaflet', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Leaflet.js + OpenStreetMap integration ready!',
+    cors: {
+      origin: req.get('origin') || 'no-origin',
+      userAgent: req.get('user-agent'),
+      allowed: true
+    },
+    features: {
+      mapping: 'Leaflet.js',
+      tiles: 'OpenStreetMap',
+      geocoding: 'Nominatim (OSM)',
+      routing: 'OSRM',
+      cost: 'Free',
+      apiKeysRequired: false
+    },
+    testEndpoints: [
+      'GET /api/map/bounds',
+      'GET /api/map/config',
+      'GET /api/map/geocode?q=Bangalore'
+    ],
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Debug endpoint to list all places
+app.get('/api/debug/places', async (req, res) => {
+  try {
+    const Place = require('./models/Place');
+    const places = await Place.find({}).limit(5);
+    const count = await Place.countDocuments();
+    
+    res.status(200).json({
+      success: true,
+      totalPlaces: count,
+      samplePlaces: places.map(place => ({
+        id: place.id || place._id,
+        name: place.name,
+        city: place.city,
+        state: place.state,
+        category: place.category,
+        coordinates: {
+          latitude: place.location?.latitude,
+          longitude: place.location?.longitude
+        }
+      })),
+      message: `Found ${count} places in database`,
+      leafletReady: true,
+      cors: {
+        origin: req.get('origin') || 'no-origin',
+        allowed: true
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Failed to query places from database'
+    });
+  }
+});
+
+// 404 handler for unknown API endpoints
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint not found',
+    availableEndpoints: ['/places', '/routes', '/trips', '/chat', '/distance', '/map'],
+    requestedEndpoint: req.originalUrl,
+    suggestion: 'Check /api/docs for available endpoints'
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', {
+    error: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    origin: req.get('origin')
+  });
+
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      success: false,
+      message: 'CORS policy violation',
+      origin: req.get('origin'),
+      allowedOrigins: process.env.NODE_ENV === 'development' 
+        ? ['http://localhost:3000', 'http://localhost:3001', 'https://tour-with-ai-16.vercel.app']
+        : ['https://tour-with-ai-16.vercel.app']
+    });
+  }
+
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation Error',
+      errors: Object.values(err.errors).map(e => e.message)
+    });
+  }
+
+  res.status(err.status || 500).json({
+    success: false,
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+  });
+});
+
+// Start server
+const server = app.listen(PORT, () => {
+  console.log(`🚀 TourWithAI Backend running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 CORS enabled for:`);
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`   - http://localhost:3000 (development)`);
+    console.log(`   - http://localhost:3001 (development)`);
+    console.log(`   - https://tour-with-ai-16.vercel.app (production)`);
+    console.log(`   - All origins in development mode`);
+  } else {
+    console.log(`   - https://tour-with-ai-16.vercel.app`);
+    console.log(`   - ${process.env.FRONTEND_URL || 'Not set'}`);
+  }
+  
+  console.log(`🗺️  Leaflet.js + OpenStreetMap: ENABLED`);
+  console.log(`📝 API Documentation: http://localhost:${PORT}/api/docs`);
+  console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);
+  console.log(`🧪 Leaflet Test: http://localhost:${PORT}/api/test/leaflet`);
+  console.log(`🌍 Map API: http://localhost:${PORT}/api/map/*`);
+});
+
+server.timeout = 120000;
+module.exports = app;
+----
+// API Service Layer for TourWithAI
+import axios from 'axios';
+import toast from 'react-hot-toast';
+
+// API Configuration
+// src/services/api.js
+
+// CORRECTED API Configuration
+const API_BASE_URL = process.env.REACT_APP_URL || 'http://localhost:5000/api';
+
+const API_TIMEOUT = 30000; // 30 seconds
+const MAX_RETRIES = 3;
+
+// Create axios instance with default config
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: API_TIMEOUT,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
+// Request interceptor
+apiClient.interceptors.request.use(
+  (config) => {
+    const timestamp = new Date().toISOString();
+    console.log(`🌐 API Request [${timestamp}]: ${config.method?.toUpperCase()} ${config.url}`);
+    
+    // Add request timestamp
+    config.metadata = { startTime: Date.now() };
+    return config;
+  },
+  (error) => {
+    console.error('API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor
+apiClient.interceptors.response.use(
+  (response) => {
+    const duration = Date.now() - response.config.metadata.startTime;
+    console.log(`✅ API Response [${duration}ms]: ${response.config.method?.toUpperCase()} ${response.config.url}`);
+    return response;
+  },
+  (error) => {
+    const duration = error.config?.metadata ? Date.now() - error.config.metadata.startTime : 0;
+    console.error(`❌ API Error [${duration}ms]:`, {
+      url: error.config?.url,
+      method: error.config?.method?.toUpperCase(),
+      status: error.response?.status,
+      message: error.message,
+    });
+
+    // Handle specific error cases
+    if (error.code === 'ECONNREFUSED' || error.code === 'NETWORK_ERROR') {
+      toast.error('Backend server is not running. Please start the server.');
+    } else if (error.response?.status >= 500) {
+      toast.error('Server error. Please try again later.');
+    } else if (error.response?.status === 429) {
+      toast.error('Too many requests. Please wait a moment.');
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// Utility function for retries
+const withRetry = async (fn, retries = MAX_RETRIES) => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries > 0 && (error.code === 'ECONNREFUSED' || error.response?.status >= 500)) {
+      console.log(`🔄 Retrying API call... ${retries} attempts left`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+      return withRetry(fn, retries - 1);
+    }
+    throw error;
+  }
+};
+
+// API Service Object
+export const apiService = {
+  // Health Check
+  async checkHealth() {
+    try {
+      const response = await withRetry(() => apiClient.get('/health'));
+      return response.data;
+    } catch (error) {
+      throw new Error(`Backend connection failed: ${error.message}`);
+    }
+  },
+
+  // PLACES API
+  async getAllPlaces(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value);
+        }
+      });
+
+      const response = await apiClient.get(`/places?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to fetch places: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getPlaceById(id) {
+    try {
+      const response = await apiClient.get(`/places/${id}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to fetch place: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async searchPlaces(query, filters = {}) {
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        ...filters
+      });
+
+      const response = await apiClient.get(`/places/search?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Search failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getNearbyPlaces(latitude, longitude, radius = 50, filters = {}) {
+    try {
+      const params = new URLSearchParams({
+        latitude,
+        longitude,
+        radius,
+        ...filters
+      });
+
+      const response = await apiClient.get(`/places/nearby?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to fetch nearby places: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getPlacesByCategory(category, filters = {}) {
+    try {
+      const params = new URLSearchParams(filters);
+      const response = await apiClient.get(`/places/category/${category}?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to fetch places by category: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getPlaceStats() {
+    try {
+      const response = await apiClient.get('/places/stats');
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to fetch place statistics: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // ROUTE OPTIMIZATION API
+  async optimizeRouteWithAlgorithm(payload) {
+    try {
+      console.log('🚀 Calling algorithm-based route optimization...');
+      console.log('📊 Payload:', {
+        placesCount: payload.places?.length,
+        optimizationLevel: payload.preferences?.optimizationLevel,
+        totalTimeAvailable: payload.constraints?.totalTimeAvailable
+      });
+
+      const response = await apiClient.post('/routes/optimize-with-algorithm', payload);
+      
+      console.log('✅ Algorithm optimization response:', {
+        success: response.data.success,
+        algorithm: response.data.algorithm,
+        placesOptimized: response.data.route?.length,
+        efficiency: response.data.metrics?.efficiency
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('💥 Algorithm optimization failed:', error);
+      throw new Error(`Route optimization failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // Add this method to your existing apiService object in src/services/api.js
+
+// NEW: Generate Algorithm Explanation
+async generateAlgorithmExplanation(payload) {
+  try {
+    console.log('🧠 Calling algorithm explanation generation...');
+    console.log('📊 Payload:', {
+      routeLength: payload.route?.length,
+      algorithm: payload.algorithm,
+      explanationLevel: payload.explanationLevel
+    });
+
+    const response = await apiClient.post('/trips/generate-algorithm-explanation', payload);
+
+    console.log('✅ Algorithm explanation response:', {
+      success: response.data.success,
+      hasReasoning: !!response.data.data?.reasoning,
+      hasOptimizations: !!response.data.data?.optimizations,
+      hasTips: !!response.data.data?.tips,
+      explanationLevel: response.data.metadata?.explanationLevel
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('💥 Algorithm explanation failed:', error);
+    throw new Error(`Algorithm explanation failed: ${error.response?.data?.message || error.message}`);
+  }
+},
+
+// Enhanced generateDetailedTripPlan method
+async generateDetailedTripPlan(payload) {
+  try {
+    console.log('📋 Calling detailed trip plan generation...');
+    console.log('📊 Payload:', {
+      placesCount: payload.places?.length,
+      algorithm: payload.algorithm,
+      startTime: payload.preferences?.startTime,
+      userLocationId: payload.preferences?.userLocationId
+    });
+
+    const response = await apiClient.post('/trips/generate-detailed-plan', payload);
+
+    console.log('✅ Detailed plan generation response:', {
+      success: response.data.success,
+      hasSummary: !!response.data.data?.summary,
+      hasTimeline: !!response.data.data?.timeline,
+      hasInsights: !!response.data.data?.insights,
+      hasRecommendations: !!response.data.data?.recommendations,
+      hasLogistics: !!response.data.data?.logistics,
+      hasPracticalInfo: !!response.data.data?.practicalInfo
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('💥 Detailed plan generation failed:', error);
+    throw new Error(`Detailed plan generation failed: ${error.response?.data?.message || error.message}`);
+  }
+},
+  async getRouteSuggestions(criteria = {}) {
+    try {
+      const params = new URLSearchParams(criteria);
+      const response = await apiClient.get(`/routes/suggestions?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get route suggestions: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // TRIP PLANNING API
+  async createTrip(tripData) {
+    try {
+      const response = await apiClient.post('/trips', tripData);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to create trip: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async optimizeTrip(payload) {
+    try {
+      const response = await apiClient.post('/trips/optimize', payload);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Trip optimization failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // Add to apiService in src/services/api.js
+
+// Real-time tracking endpoints
+async startRealTimeTracking(payload) {
+  try {
+    const response = await apiClient.post('/trips/start-realtime-tracking', payload);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to start tracking: ${error.response?.data?.message || error.message}`);
+  }
+},
+
+async updateTripProgress(payload) {
+  try {
+    const response = await apiClient.put('/trips/update-progress', payload);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to update progress: ${error.response?.data?.message || error.message}`);
+  }
+},
+
+async getRealTimeUpdates(tripId, currentLocation, lastUpdateTime) {
+  try {
+    const params = new URLSearchParams({
+      tripId,
+      currentLocation: JSON.stringify(currentLocation),
+      lastUpdateTime
+    });
+    const response = await apiClient.get(`/trips/real-time-updates?${params}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to get updates: ${error.response?.data?.message || error.message}`);
+  }
+},
+
+
+  async getTripSuggestions(criteria = {}) {
+    try {
+      const params = new URLSearchParams(criteria);
+      const response = await apiClient.get(`/trips/suggestions?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get trip suggestions: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // AI CHAT API
+  async chatWithAI(message, context = {}) {
+    try {
+      const response = await apiClient.post('/chat', { message, context });
+      return response.data;
+    } catch (error) {
+      throw new Error(`AI chat failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getTravelSuggestions(preferences) {
+    try {
+      const response = await apiClient.post('/chat/suggestions', preferences);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get travel suggestions: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getPlaceInfo(placeId, question = null) {
+    try {
+      const response = await apiClient.post('/chat/place-info', { placeId, question });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get place information: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // MAP API
+  async getMapBounds(filters = {}) {
+    try {
+      const params = new URLSearchParams(filters);
+      const response = await apiClient.get(`/map/bounds?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get map bounds: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getPlacesInBounds(bounds, filters = {}) {
+    try {
+      const params = new URLSearchParams({
+        ...bounds,
+        ...filters
+      });
+      const response = await apiClient.get(`/map/places-in-bounds?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get places in bounds: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getOptimizedRoute(payload) {
+    try {
+      const response = await apiClient.post('/map/optimize-route', payload);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get optimized route: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getClusteredMarkers(params = {}) {
+    try {
+      const queryParams = new URLSearchParams(params);
+      const response = await apiClient.get(`/map/clustered-markers?${queryParams}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get clustered markers: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async getHeatmapData(params = {}) {
+    try {
+      const queryParams = new URLSearchParams(params);
+      const response = await apiClient.get(`/map/heatmap-data?${queryParams}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get heatmap data: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async geocodeAddress(address) {
+    try {
+      const response = await apiClient.get(`/map/geocode?q=${encodeURIComponent(address)}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Geocoding failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async reverseGeocode(latitude, longitude) {
+    try {
+      const response = await apiClient.get(`/map/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Reverse geocoding failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // DISTANCE API
+  async calculateDistanceMatrix(origins, destinations) {
+    try {
+      const response = await apiClient.post('/distance/matrix', { origins, destinations });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Distance calculation failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async calculateDistance(origin, destination) {
+    try {
+      const response = await apiClient.post('/distance/calculate', { origin, destination });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Distance calculation failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  async generateDetailedTripPlan(payload) {
+    try {
+      console.log('🧠 Calling detailed trip plan generation...');
+      console.log('📊 Payload:', {
+        placesCount: payload.places?.length,
+        algorithm: payload.algorithm,
+        startTime: payload.preferences?.startTime
+      });
+
+      const response = await apiClient.post('/trips/generate-detailed-plan', payload);
+      
+      console.log('✅ Detailed plan generation response:', {
+        success: response.data.success,
+        aiModel: response.data.aiModel,
+        hasTimeline: !!response.data.data?.timeline,
+        hasCulturalGuide: !!response.data.data?.culturalGuide
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('💥 Detailed plan generation failed:', error);
+      throw new Error(`Detailed plan generation failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // Enhanced route optimization that also prepares for detailed plan
+  async optimizeRouteWithAlgorithm(payload) {
+    try {
+      console.log('🚀 Calling algorithm-based route optimization...');
+      console.log('📊 Payload:', {
+        placesCount: payload.places?.length,
+        optimizationLevel: payload.preferences?.optimizationLevel,
+        totalTimeAvailable: payload.constraints?.totalTimeAvailable,
+        startLocation: payload.constraints?.startLocation?.name
+      });
+
+      const response = await apiClient.post('/routes/optimize-with-algorithm', payload);
+      
+      console.log('✅ Algorithm optimization response:', {
+        success: response.data.success,
+        algorithm: response.data.algorithm,
+        placesOptimized: response.data.route?.length,
+        efficiency: response.data.metrics?.efficiency,
+        hasAiInsights: !!response.data.aiInsights
+      });
+
+      // If optimization is successful, prepare data for potential detailed plan generation
+      if (response.data.success && response.data.route) {
+        // Store optimization result for detailed plan generation
+        response.data._detailedPlanPayload = {
+          places: response.data.route,
+          preferences: payload.preferences || {},
+          routeMetrics: response.data.metrics || {},
+          algorithm: response.data.algorithm || 'unknown',
+          constraints: payload.constraints || {}
+        };
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('💥 Algorithm optimization failed:', error);
+      throw new Error(`Route optimization failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // TRIP PLANNING API - Enhanced
+  async createTripWithDetailedPlan(tripData) {
+    try {
+      // First optimize the route
+      const optimizedResult = await this.optimizeRouteWithAlgorithm(tripData);
+      
+      if (optimizedResult.success) {
+        // Then generate detailed plan
+        const detailedPlan = await this.generateDetailedTripPlan(optimizedResult._detailedPlanPayload);
+        
+        // Combine both results
+        return {
+          success: true,
+          optimizedRoute: optimizedResult,
+          detailedPlan: detailedPlan.data,
+          combined: true
+        };
+      }
+      
+      return optimizedResult;
+    } catch (error) {
+      throw new Error(`Complete trip creation failed: ${error.message}`);
+    }
+  },
+
+  // Enhanced trip optimization with detailed plan option
+  async optimizeTrip(payload, includeDetailedPlan = false) {
+    try {
+      const response = await apiClient.post('/trips/optimize', payload);
+      
+      if (includeDetailedPlan && response.data.success) {
+        try {
+          const detailedPlan = await this.generateDetailedTripPlan({
+            places: response.data.route || [],
+            preferences: payload.preferences || {},
+            routeMetrics: response.data.metrics || {},
+            algorithm: response.data.algorithm || 'unknown'
+          });
+          
+          response.data.detailedPlan = detailedPlan.data;
+        } catch (detailError) {
+          console.warn('Failed to generate detailed plan:', detailError);
+          // Continue without detailed plan
+        }
+      }
+      
+      return response.data;
+    } catch (error) {
+      throw new Error(`Trip optimization failed: ${error.response?.data?.message || error.message}`);
+    }
+  },
+
+  // UTILITY FUNCTIONS
+  isOnline() {
+    return navigator.onLine;
+  },
+
+  async testConnection() {
+    try {
+      await this.checkHealth();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  // Cache management
+  clearCache() {
+    // Clear any cached data if needed
+    console.log('🗑️ API cache cleared');
+  },
+
+  // Debug information
+  getDebugInfo() {
+    return {
+      baseURL: API_BASE_URL,
+      timeout: API_TIMEOUT,
+      maxRetries: MAX_RETRIES,
+      isOnline: navigator.onLine,
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+// Enhanced error handling for trip planning
+export const handleTripPlanningError = (error) => {
+  if (error.message.includes('Gemini')) {
+    return {
+      type: 'AI_ERROR',
+      message: 'AI service is temporarily unavailable. Using fallback planning.',
+      fallbackAvailable: true
+    };
+  }
+  
+  if (error.message.includes('optimization')) {
+    return {
+      type: 'OPTIMIZATION_ERROR',
+      message: 'Route optimization failed. Please try with fewer places.',
+      suggestion: 'Reduce the number of selected places or adjust time constraints.'
+    };
+  }
+  
+  if (error.message.includes('timeout')) {
+    return {
+      type: 'TIMEOUT_ERROR',
+      message: 'Request timed out. Please try again.',
+      suggestion: 'Check your internet connection and try again.'
+    };
+  }
+  
+  return {
+    type: 'GENERAL_ERROR',
+    message: error.message || 'Something went wrong. Please try again.',
+    suggestion: 'Please try again or contact support if the problem persists.'
+  };
+};
+
+// Trip planning utilities
+export const tripPlanningUtils = {
+  // Validate trip data before sending to API
+  validateTripData(data) {
+    const errors = [];
+    
+    if (!data.places || !Array.isArray(data.places) || data.places.length === 0) {
+      errors.push('At least one place must be selected');
+    }
+    
+    if (data.places && data.places.length > 20) {
+      errors.push('Maximum 20 places allowed');
+    }
+    
+    if (data.preferences?.startTime && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(data.preferences.startTime)) {
+      errors.push('Invalid start time format');
+    }
+    
+    if (data.constraints?.totalTimeAvailable && (data.constraints.totalTimeAvailable < 120 || data.constraints.totalTimeAvailable > 1440)) {
+      errors.push('Time available must be between 2-24 hours');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  },
+
+  // Format trip data for API
+  formatTripDataForAPI(places, settings) {
+    return {
+      places: places.map(place => ({
+        id: place.id,
+        name: place.name,
+        category: place.category || 'attraction',
+        location: {
+          latitude: parseFloat(place.location.latitude),
+          longitude: parseFloat(place.location.longitude)
+        },
+        averageVisitDuration: parseInt(place.averageVisitDuration) || 90,
+        rating: parseFloat(place.rating) || 3.5,
+        city: place.city || 'Unknown',
+        state: place.state || 'Unknown',
+        entryFee: place.entryFee || { indian: 0, foreign: 0 },
+        description: place.description || '',
+        amenities: place.amenities || [],
+        bestTimeToVisit: place.bestTimeToVisit || ['morning']
+      })),
+      preferences: {
+        startTime: settings.startTime,
+        optimizationLevel: settings.optimizationLevel,
+        optimizeFor: settings.preferences?.optimizeFor || 'balanced',
+        ...settings.preferences
+      },
+      constraints: {
+        totalTimeAvailable: settings.totalTimeAvailable,
+        startDay: new Date().getDay(),
+        startLocation: settings.constraints?.startLocation || {
+          name: 'Coimbatore Tidal Park',
+          latitude: 11.0638,
+          longitude: 77.0596
+        },
+        ...settings.constraints
+      }
+    };
+  },
+
+  // Calculate trip statistics
+  calculateTripStats(places) {
+    if (!places || places.length === 0) {
+      return {
+        totalPlaces: 0,
+        categories: [],
+        cities: [],
+        averageRating: 0,
+        totalDuration: 0,
+        estimatedCost: 0
+      };
+    }
+
+    const categories = [...new Set(places.map(p => p.category))];
+    const cities = [...new Set(places.map(p => p.city))];
+    const averageRating = places.reduce((sum, p) => sum + (p.rating || 0), 0) / places.length;
+    const totalDuration = places.reduce((sum, p) => sum + (p.averageVisitDuration || 90), 0);
+    const estimatedCost = places.reduce((sum, p) => sum + (p.entryFee?.indian || p.entryFee?.amount || 0), 0);
+
+    return {
+      totalPlaces: places.length,
+      categories,
+      cities,
+      averageRating: Math.round(averageRating * 10) / 10,
+      totalDuration,
+      estimatedCost
+    };
+  },
+
+  // Format route metrics for display
+  formatRouteMetrics(metrics) {
+    if (!metrics) return {};
+
+    return {
+      totalTime: Math.ceil((metrics.totalTime || 0) / 60) + ' hours',
+      totalDistance: (metrics.totalDistance || 0).toFixed(1) + ' km',
+      efficiency: (metrics.efficiency || 0).toFixed(1) + '%',
+      placesVisited: metrics.placesVisited || 0,
+      estimatedCost: '₹' + (metrics.totalCost || 0)
+    };
+  }
+};
+
+// Export enhanced API client configuration
+export const enhancedApiConfig = {
+  ...apiClient.defaults,
+  timeout: 45000, // Increased timeout for detailed plan generation
+  retries: 2,
+  retryDelay: 1000
+};
+
+// Detailed plan generation status tracking
+export const detailedPlanStatus = {
+  IDLE: 'idle',
+  GENERATING: 'generating',
+  SUCCESS: 'success',
+  ERROR: 'error',
+  FALLBACK: 'fallback'
+};
+
+// Export axios instance for direct use if needed
+export { apiClient };
+
+// Export API base URL for other modules
+export { API_BASE_URL };
+---
+// Fixed TripPlannerPage.jsx - Coordinate Consistency with MapView
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { apiService } from '../services/api';
+import ConnectionStatus from '../components/ConnectionStatus';
+import LoadingSpinner from '../components/LoadingSpinner';
+import DetailedTripPlanner from '../components/DetailedTripPlanner';
+import { 
+  Settings, 
+  Zap, 
+  Brain, 
+  Clock, 
+  MapPin, 
+  Target,
+  AlertCircle,
+  CheckCircle,
+  Loader,
+  Eye,
+  EyeOff,
+  ChevronLeft,
+  ChevronRight,
+  Navigation,
+  ChevronDown
+} from 'lucide-react';
+import { STORAGE_KEYS, ROUTE_SETTINGS, ALGORITHMS } from '../utils/constants';
+import { 
+  USER_LOCATIONS, 
+  getLocationById, 
+  getAllLocations, 
+  getLocationsByStateGrouped,
+  validateLocation 
+} from '../utils/locations';
+
+const TripPlannerPage = ({ isConnected, onRetry }) => {
+  const navigate = useNavigate();
+  const [places, setPlaces] = useState([]);
+  const [selectedPlaces, setSelectedPlaces] = useState([]);
+  const [optimizedRoute, setOptimizedRoute] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [optimizationStatus, setOptimizationStatus] = useState(null);
+  const [currentView, setCurrentView] = useState('selection');
+  const [showDetailedPlan, setShowDetailedPlan] = useState(false);
+
+  // Location Selection State
+  const [selectedLocationId, setSelectedLocationId] = useState('coimbatore');
+  const [showLocationSelector, setShowLocationSelector] = useState(false);
+  const [availableLocations, setAvailableLocations] = useState([]);
+
+  // Route settings with dynamic user location
+  const [routeSettings, setRouteSettings] = useState({
+    startTime: ROUTE_SETTINGS.DEFAULT_START_TIME,
+    totalTimeAvailable: ROUTE_SETTINGS.DEFAULT_DURATION,
+    optimizationLevel: 'balanced',
+    userLocationId: 'coimbatore',
+    
+    preferences: {
+      optimizeFor: 'balanced',
+      ratingWeight: 0.3,
+      distanceWeight: 0.25,
+      timeWeight: 0.2,
+      costWeight: 0.15,
+      accessibilityWeight: 0.1
+    },
+
+    constraints: {
+      startLocation: getLocationById('coimbatore'),
+      budget: null,
+      accessibility: {
+        wheelchairAccess: false,
+        kidFriendly: false
+      }
+    }
+  });
+
+  // FIXED: Enhanced coordinate validation utility that matches MapView expectations
+  const validateCoordinates = (lat, lng) => {
+    const latitude = typeof lat === 'number' ? lat : parseFloat(lat);
+    const longitude = typeof lng === 'number' ? lng : parseFloat(lng);
+    
+    return (
+      !isNaN(latitude) && 
+      !isNaN(longitude) &&
+      latitude >= -90 && latitude <= 90 &&
+      longitude >= -180 && longitude <= 180
+    );
+  };
+
+  // FIXED: Unified coordinate extraction that works with both backend formats and user locations
+  const extractCoordinates = (locationData) => {
+    if (!locationData) return null;
+    
+    let lat, lng;
+    
+    // Format 1: Direct properties (USER_LOCATIONS format)
+    if (locationData.latitude !== undefined && locationData.longitude !== undefined) {
+      lat = parseFloat(locationData.latitude);
+      lng = parseFloat(locationData.longitude);
+    }
+    // Format 2: Nested coordinates object (backend format)
+    else if (locationData.coordinates) {
+      lat = parseFloat(locationData.coordinates.latitude);
+      lng = parseFloat(locationData.coordinates.longitude);
+    }
+    // Format 3: Location object (places format)
+    else if (locationData.location) {
+      lat = parseFloat(locationData.location.latitude);
+      lng = parseFloat(locationData.location.longitude);
+    }
+    // Format 4: Array format [lat, lng]
+    else if (Array.isArray(locationData) && locationData.length >= 2) {
+      lat = parseFloat(locationData[0]);
+      lng = parseFloat(locationData[1]);
+    }
+    else {
+      return null;
+    }
+    
+    if (validateCoordinates(lat, lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+    
+    return null;
+  };
+
+  // FIXED: Standardize coordinate format for MapView compatibility
+  const standardizeForMap = (locationData) => {
+    const coords = extractCoordinates(locationData);
+    if (!coords) return null;
+    
+    return {
+      ...locationData,
+      // Ensure all coordinate formats are present
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      coordinates: {
+        latitude: coords.latitude,
+        longitude: coords.longitude
+      },
+      location: {
+        latitude: coords.latitude,
+        longitude: coords.longitude
+      },
+      // Array format for Leaflet
+      position: [coords.latitude, coords.longitude]
+    };
+  };
+
+  // Load available locations on component mount
+  useEffect(() => {
+    const locations = getAllLocations();
+    console.log('Available locations loaded:', locations.length);
+    
+    // Validate and standardize each location
+    const validLocations = locations.map(location => {
+      const standardized = standardizeForMap(location);
+      if (!standardized) {
+        console.warn(`Invalid coordinates for location ${location.id}:`, location);
+        return null;
+      }
+      return standardized;
+    }).filter(Boolean);
+    
+    console.log(`${validLocations.length}/${locations.length} locations have valid coordinates`);
+    setAvailableLocations(validLocations);
+    
+    // Set initial location data with validation
+    const initialLocation = getLocationById(selectedLocationId);
+    const standardizedInitial = standardizeForMap(initialLocation);
+    
+    if (standardizedInitial) {
+      setRouteSettings(prev => ({
+        ...prev,
+        userLocationId: selectedLocationId,
+        constraints: {
+          ...prev.constraints,
+          startLocation: standardizedInitial
+        }
+      }));
+    } else {
+      console.error('Initial location has invalid coordinates, falling back to coimbatore');
+      setSelectedLocationId('coimbatore');
+    }
+  }, []);
+
+  // Load places from API with enhanced coordinate validation
+  const loadPlaces = useCallback(async () => {
+    if (!isConnected) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('Loading places from API...');
+      const response = await apiService.getAllPlaces();
+
+      if (!response?.success || !response?.places) {
+        throw new Error('Invalid API response structure');
+      }
+
+      const places = response.places;
+      console.log(`Received ${places.length} places from API`);
+
+      // Enhanced place validation and standardization
+      const validPlaces = places.map(place => {
+        const hasRequiredData = place.name && (place.id || place._id) && place.averageVisitDuration;
+        if (!hasRequiredData) {
+          console.warn(`Place missing required data:`, place.name || 'Unknown');
+          return null;
+        }
+
+        const standardized = standardizeForMap(place);
+        if (!standardized) {
+          console.warn(`Place ${place.name} has invalid coordinates:`, place);
+          return null;
+        }
+
+        return standardized;
+      }).filter(Boolean);
+
+      console.log(`${validPlaces.length}/${places.length} places are valid and standardized`);
+      setPlaces(validPlaces);
+      
+      if (validPlaces.length > 0) {
+        toast.success(`Loaded ${validPlaces.length} places with validated coordinates!`);
+      } else {
+        toast.error('No places with valid coordinates found');
+      }
+
+    } catch (error) {
+      console.error('Error loading places:', error);
+      setError(error.message);
+      toast.error(`Failed to load places: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [isConnected]);
+
+  // Load places on mount
+  useEffect(() => {
+    if (isConnected) {
+      loadPlaces();
+    }
+  }, [isConnected, loadPlaces]);
+
+  // Handle place selection
+  const handlePlaceSelect = useCallback((place, isSelected) => {
+    setSelectedPlaces(prev => {
+      if (isSelected) {
+        return [...prev, place];
+      } else {
+        return prev.filter(p => (p.id || p._id) !== (place.id || place._id));
+      }
+    });
+  }, []);
+
+  // Enhanced algorithm-based route optimization
+  const handleOptimizeRoute = useCallback(async () => {
+    if (selectedPlaces.length < 2) {
+      toast.error('Please select at least 2 places for optimization.');
+      return;
+    }
+
+    if (selectedPlaces.length > 20) {
+      toast.error('Maximum 20 places allowed for optimization.');
+      return;
+    }
+
+    const currentLocation = getLocationById(selectedLocationId);
+    const standardizedLocation = standardizeForMap(currentLocation);
+    
+    if (!standardizedLocation) {
+      toast.error('Starting location has invalid coordinates');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setOptimizedRoute(null);
+    setOptimizationStatus('running');
+    setCurrentView('results');
+
+    console.log('Starting algorithm-based optimization');
+    console.log(`Places: ${selectedPlaces.length}`);
+    console.log(`Starting from: ${standardizedLocation.name}`);
+
+    try {
+      // Prepare algorithm payload with standardized coordinates
+      const algorithmPayload = {
+        places: selectedPlaces.map((place, index) => {
+          const coords = extractCoordinates(place);
+          if (!coords) {
+            console.error(`Place ${place.name} has no valid coordinates, skipping`);
+            return null;
+          }
+
+          return {
+            id: place.id || place._id || `place-${index}`,
+            name: place.name,
+            category: place.category || 'attraction',
+            location: {
+              latitude: coords.latitude,
+              longitude: coords.longitude
+            },
+            // Ensure coordinates are in multiple formats for compatibility
+            coordinates: {
+              latitude: coords.latitude,
+              longitude: coords.longitude
+            },
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            averageVisitDuration: parseInt(place.averageVisitDuration) || 90,
+            rating: parseFloat(place.rating) || 3.5,
+            city: place.city || 'Unknown',
+            state: place.state || 'Unknown',
+            entryFee: place.entryFee || { indian: 0, foreign: 0 },
+            description: place.description || '',
+            amenities: place.amenities || [],
+            bestTimeToVisit: place.bestTimeToVisit || ['morning']
+          };
+        }).filter(Boolean),
+        
+        preferences: routeSettings.preferences,
+        constraints: {
+          startTime: routeSettings.startTime,
+          totalTimeAvailable: routeSettings.totalTimeAvailable,
+          startDay: new Date().getDay(),
+          ...routeSettings.constraints,
+          startLocation: standardizedLocation
+        },
+        userLocationId: selectedLocationId
+      };
+
+      if (algorithmPayload.places.length !== selectedPlaces.length) {
+        const invalidCount = selectedPlaces.length - algorithmPayload.places.length;
+        toast.error(`${invalidCount} places have invalid coordinates and were excluded`);
+      }
+
+      if (algorithmPayload.places.length < 2) {
+        throw new Error('Not enough places with valid coordinates for optimization');
+      }
+
+      console.log('Calling backend optimization with validated data...');
+      
+      const result = await apiService.optimizeRouteWithAlgorithm(algorithmPayload);
+
+      if (!result.success || !result.route || result.route.length === 0) {
+        throw new Error(result.message || 'Algorithm failed to generate a valid route');
+      }
+
+      // Standardize returned route for MapView compatibility
+      const standardizedRoute = result.route.map(place => standardizeForMap(place)).filter(Boolean);
+
+      console.log(`Route optimization complete: ${standardizedRoute.length} places standardized`);
+
+      setOptimizedRoute({
+        route: standardizedRoute,
+        itinerary: result.itinerary,
+        algorithm: result.algorithm,
+        metrics: result.metrics,
+        efficiency: result.metrics?.efficiency || 0,
+        aiInsights: result.aiInsights || {},
+        originalPlaces: selectedPlaces,
+        startingLocation: standardizedLocation
+      });
+
+      setOptimizationStatus('completed');
+
+      toast.success(
+        `${result.algorithm} optimized ${standardizedRoute.length} places from ${standardizedLocation.name}!`,
+        { duration: 4000 }
+      );
+
+    } catch (error) {
+      console.error('Optimization failed:', error);
+      setError(error.message);
+      setOptimizationStatus('failed');
+      setCurrentView('selection');
+      toast.error(`Algorithm error: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedPlaces, routeSettings, selectedLocationId]);
+
+  // FIXED: Enhanced map data preparation with unified coordinate format
+  const handleViewOnMap = () => {
+    if (!optimizedRoute || !optimizedRoute.route) {
+      toast.error('No optimized route available to display on map');
+      return;
+    }
+
+    const currentLocation = getLocationById(selectedLocationId);
+    const standardizedLocation = standardizeForMap(currentLocation);
+    
+    if (!standardizedLocation) {
+      toast.error('Starting location coordinates not available');
+      return;
+    }
+
+    // Validate all route places have coordinates
+    const validRoutes = optimizedRoute.route.filter(place => {
+      const coords = extractCoordinates(place);
+      return coords !== null;
+    });
+
+    if (validRoutes.length === 0) {
+      toast.error('No valid coordinates found in route places');
+      return;
+    }
+
+    console.log(`Preparing map data: ${validRoutes.length} places with valid coordinates`);
+
+    // FIXED: Prepare enhanced map data with consistent coordinate format
+    const mapData = {
+      startLocation: {
+        id: standardizedLocation.id || 'start-location',
+        name: standardizedLocation.name,
+        // Multiple coordinate formats for maximum compatibility
+        latitude: standardizedLocation.latitude,
+        longitude: standardizedLocation.longitude,
+        location: {
+          latitude: standardizedLocation.latitude,
+          longitude: standardizedLocation.longitude
+        },
+        coordinates: {
+          latitude: standardizedLocation.latitude,
+          longitude: standardizedLocation.longitude
+        },
+        position: [standardizedLocation.latitude, standardizedLocation.longitude],
+        isStartLocation: true,
+        description: standardizedLocation.description || 'Starting point',
+        district: standardizedLocation.district,
+        state: standardizedLocation.state
+      },
+      optimizedRoute: validRoutes.map(place => {
+        const coords = extractCoordinates(place);
+        
+        return {
+          ...place,
+          // Ensure all coordinate formats are present
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          location: {
+            latitude: coords.latitude,
+            longitude: coords.longitude
+          },
+          coordinates: {
+            latitude: coords.latitude,
+            longitude: coords.longitude
+          },
+          position: [coords.latitude, coords.longitude],
+          // Required fields
+          id: place.id || place._id,
+          name: place.name,
+          category: place.category || 'attraction',
+          city: place.city || 'Unknown',
+          state: place.state || 'Unknown',
+          rating: place.rating || 'N/A',
+          averageVisitDuration: place.averageVisitDuration || 90
+        };
+      }),
+      routeSettings: routeSettings,
+      algorithm: optimizedRoute.algorithm,
+      metrics: optimizedRoute.metrics,
+      userLocationId: selectedLocationId
+    };
+
+    console.log('Map data prepared successfully:', {
+      startLocation: mapData.startLocation.name,
+      startCoords: `${mapData.startLocation.latitude}, ${mapData.startLocation.longitude}`,
+      routePlaces: mapData.optimizedRoute.length,
+      algorithm: mapData.algorithm
+    });
+
+    // Store in session storage for map page access
+    sessionStorage.setItem('tripMapData', JSON.stringify(mapData));
+    
+    // Navigate to map page with trip mode
+    navigate('/map?mode=trip');
+    
+    toast.success('Opening route on interactive map...');
+  };
+
+  // Handle view detailed plan
+  const handleViewDetailedPlan = () => {
+    setCurrentView('detailed');
+    setShowDetailedPlan(true);
+  };
+
+  // Handle back navigation
+  const handleBackToResults = () => {
+    setCurrentView('results');
+    setShowDetailedPlan(false);
+  };
+
+  const handleBackToSelection = () => {
+    setCurrentView('selection');
+    setOptimizedRoute(null);
+    setOptimizationStatus(null);
+    setShowDetailedPlan(false);
+  };
+
+  // Enhanced location selection handler
+  const handleLocationSelect = useCallback((locationId) => {
+    if (!validateLocation(locationId)) {
+      toast.error('Invalid location selected');
+      return;
+    }
+
+    const selectedLocation = getLocationById(locationId);
+    const standardizedLocation = standardizeForMap(selectedLocation);
+    
+    if (!standardizedLocation) {
+      toast.error('Selected location has invalid coordinates');
+      return;
+    }
+
+    setSelectedLocationId(locationId);
+    setRouteSettings(prev => ({
+      ...prev,
+      userLocationId: locationId,
+      constraints: {
+        ...prev.constraints,
+        startLocation: standardizedLocation
+      }
+    }));
+    setShowLocationSelector(false);
+    
+    console.log(`Location changed to ${standardizedLocation.name} with coordinates:`, 
+      standardizedLocation.latitude, standardizedLocation.longitude);
+    toast.success(`Starting location set to ${standardizedLocation.name}`);
+  }, []);
+
+  // Get grouped locations for dropdown
+  const groupedLocations = getLocationsByStateGrouped();
+  const currentLocation = getLocationById(selectedLocationId);
+  const standardizedCurrentLocation = standardizeForMap(currentLocation);
+
+  // Connection check
+  if (!isConnected) {
+    return (
+      
+
+
+        
+
+
+          
+        
+
+
+      
+
+
+    );
+  }
+
+  // Safety check for current location
+  if (!standardizedCurrentLocation) {
+    return (
+      
+
+
+        
+
+
+          
+          
+
+Location Data Error
+
+
+          
+
+
+            Unable to load valid coordinates for starting location '{selectedLocationId}'. 
+            Please refresh the page or select a different location.
+          
+
+
+           window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mr-2"
+          >
+            Refresh Page
+          
+           setSelectedLocationId('coimbatore')}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Use Default Location
+          
+        
+
+
+      
+
+
+    );
+  }
+
+  return (
+    
+
+
+      
+
+
+        
+        {/* Header with Navigation */}
+        
+
+
+          
+
+
+            
+
+
+              {/* Back Button */}
+              {currentView !== 'selection' && (
+                
+                  
+                  Back
+                
+              )}
+
+              
+
+
+                
+
+
+                  
+                  AI-Powered Trip Planner
+                
+
+
+                
+
+
+                  {currentView === 'selection' && `Plan your journey starting from ${standardizedCurrentLocation.name}`}
+                  {currentView === 'results' && `Your optimized route from ${standardizedCurrentLocation.name} is ready`}
+                  {currentView === 'detailed' && 'Comprehensive AI-generated trip plan'}
+                
+
+
+              
+
+
+            
+
+
+
+            {/* View Toggle & Settings */}
+            
+
+
+              {optimizedRoute && currentView === 'results' && (
+                 setShowDetailedPlan(false) : handleViewDetailedPlan}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  {showDetailedPlan ?  : }
+                  {showDetailedPlan ? 'Hide' : 'View'} Detailed Plan
+                
+              )}
+
+              {currentView === 'selection' && (
+                 setShowSettings(!showSettings)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  
+                  Settings
+                
+              )}
+            
+
+
+          
+
+
+
+          {/* Enhanced Starting Location Display with Coordinate Validation */}
+          
+
+
+            
+
+
+              
+
+
+                
+                
+
+
+                  
+
+Starting Location
+
+
+                  
+
+
+                    {standardizedCurrentLocation.name} - {standardizedCurrentLocation.district}, {standardizedCurrentLocation.state}
+                  
+
+
+                  
+
+{standardizedCurrentLocation.description}
+
+
+                  
+
+
+                    Lat: {standardizedCurrentLocation.latitude.toFixed(4)}, Lng: {standardizedCurrentLocation.longitude.toFixed(4)}
+                    
+                      
+                      Coordinates Validated & Standardized
+                    
+                  
+
+
+                
+
+
+              
+
+
+              {currentView === 'selection' && (
+                 setShowLocationSelector(!showLocationSelector)}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors text-sm"
+                >
+                  Change Location
+                  
+                
+              )}
+            
+
+
+          
+
+
+
+          {/* Enhanced Location Selector Dropdown */}
+          {showLocationSelector && currentView === 'selection' && (
+            
+
+
+              
+
+
+                
+
+Select Your Starting Location
+
+
+                {availableLocations.length} locations available
+              
+
+
+              
+
+
+                {Object.entries(groupedLocations).map(([state, locations]) => (
+                  
+
+
+                    
+
+
+                      {state}
+                    
+
+
+                    
+
+
+                      {locations.map((location) => {
+                        const standardized = standardizeForMap(location);
+                        const isValid = standardized !== null;
+                        
+                        return (
+                           isValid && handleLocationSelect(location.id)}
+                            disabled={!isValid}
+                            className={`w-full text-left p-3 rounded-lg border transition-all ${
+                              selectedLocationId === location.id
+                                ? 'border-blue-500 bg-blue-50 text-blue-900'
+                                : isValid
+                                ? 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                : 'border-red-200 bg-red-50 opacity-50 cursor-not-allowed'
+                            }`}
+                          >
+                            
+
+
+                              
+
+
+                                
+
+
+                                  {location.name}
+                                  {!isValid && }
+                                
+
+
+                                
+
+{location.district}, {location.state}
+
+
+                                
+
+{location.description}
+
+
+                                {standardized ? (
+                                  
+
+
+                                    Lat: {standardized.latitude.toFixed(4)}, Lng: {standardized.longitude.toFixed(4)}
+                                  
+
+
+                                ) : (
+                                  
+
+Invalid coordinates
+
+
+                                )}
+                              
+
+
+                              {selectedLocationId === location.id && isValid && (
+                                
+                              )}
+                            
+
+
+                          
+                        );
+                      })}
+                    
+
+
+                  
+
+
+                ))}
+              
+
+
+              
+
+
+                 setShowLocationSelector(false)}
+                  className="text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Close selector
+                
+              
+
+
+            
+
+
+          )}
+
+          {/* Rest of the component remains the same but uses standardizedCurrentLocation */}
+          {/* Breadcrumb Navigation, Settings, etc. */}
+        
+
+
+
+        {/* Place Selection View */}
+        {currentView === 'selection' && (
+          
+
+
+            
+            {/* Place Selection */}
+            
+
+
+              
+
+Select Places to Visit
+
+
+              
+              {loading ? (
+                
+
+
+                  
+                
+
+
+              ) : places.length === 0 ? (
+                
+
+
+                  
+                  
+
+No places with valid coordinates found.
+
+
+                  
+                    Retry Loading
+                  
+                
+
+
+              ) : (
+                
+
+
+                  {places.slice(0, 20).map((place) => {
+                    const isSelected = selectedPlaces.some(p => (p.id || p._id) === (place.id || place._id));
+                    
+                    return (
+                      
+
+ handlePlaceSelect(place, !isSelected)}
+                      >
+                        
+
+
+                          
+
+
+                            
+
+{place.name}
+
+
+                            
+
+{place.city || 'Unknown'}, {place.state || 'Unknown'}
+
+
+                            
+
+
+                              ⭐ {place.rating || 'N/A'}
+                              🕒 {place.averageVisitDuration}min
+                              🏷️ {place.category || 'Unknown'}
+                            
+
+
+                            
+
+
+                              Lat: {place.latitude.toFixed(4)}, Lng: {place.longitude.toFixed(4)}
+                            
+
+
+                          
+
+
+                          
+
+
+                            
+
+
+                              {isSelected && (
+                                
+                              )}
+                            
+
+
+                          
+
+
+                        
+
+
+                      
+
+
+                    );
+                  })}
+                
+
+
+              )}
+
+              {/* Enhanced Selection Summary */}
+              
+
+
+                
+
+
+                  
+                    Selected: {selectedPlaces.length} places
+                  
+                  
+                    All coordinates validated
+                  
+                
+
+
+                = 2 && !loading
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {loading ? (
+                    
+                  ) : (
+                    
+                  )}
+                  Optimize Route with AI
+                
+              
+
+
+            
+
+
+
+            {/* Preview/Instructions */}
+            
+
+
+              
+
+How It Works
+
+
+              
+              
+
+
+                
+
+
+                  
+
+
+                    1
+                  
+
+
+                  
+
+
+                    
+
+Choose Starting Point
+
+
+                    
+
+Select your starting location from {availableLocations.length} cities with validated GPS coordinates.
+
+
+                  
+
+
+                
+
+
+
+                
+
+
+                  
+
+
+                    2
+                  
+
+
+                  
+
+
+                    
+
+Select Places
+
+
+                    
+
+Choose 2-20 places with validated coordinates from our curated database.
+
+
+                  
+
+
+                
+
+
+
+                
+
+
+                  
+
+
+                    3
+                  
+
+
+                  
+
+
+                    
+
+AI Optimization
+
+
+                    
+
+Our algorithms calculate the optimal route using precise GPS coordinates from {standardizedCurrentLocation.name}.
+
+
+                  
+
+
+                
+
+
+
+                
+
+
+                  
+
+
+                    4
+                  
+
+
+                  
+
+
+                    
+
+Interactive Map
+
+
+                    
+
+View your optimized route on an interactive map with real-time progress tracking.
+
+
+                  
+
+
+                
+
+
+              
+
+
+
+              {selectedPlaces.length > 0 && (
+                
+
+
+                  
+
+
+                    Selected Places Preview (From {standardizedCurrentLocation.name})
+                  
+
+
+                  
+
+
+                    {selectedPlaces.slice(0, 5).map((place, index) => (
+                      
+
+
+                        {index + 1}. {place.name} ({place.city || 'Unknown'})
+                        
+                          {place.latitude.toFixed(2)}, {place.longitude.toFixed(2)}
+                        
+                      
+
+
+                    ))}
+                    {selectedPlaces.length > 5 && (
+                      
+
+
+                        +{selectedPlaces.length - 5} more places with valid coordinates...
+                      
+
+
+                    )}
+                  
+
+
+                
+
+
+              )}
+
+              {/* Coordinate Validation Status */}
+              
+
+
+                
+
+
+                  
+                  Coordinate Validation Active
+                
+
+
+                
+
+
+                  All locations and places are validated for GPS accuracy before optimization
+                
+
+
+              
+
+
+            
+
+
+          
+
+
+        )}
+
+        {/* Results View */}
+        {currentView === 'results' && optimizedRoute && (
+          
+
+
+            
+            {/* Optimized Route Results */}
+            
+
+
+              
+
+
+                
+
+Optimized Route
+
+
+                
+                  
+                  View Detailed Plan
+                
+              
+
+
+              
+              
+
+
+                {/* Route Summary */}
+                
+
+
+                  
+
+
+                    {optimizedRoute.algorithm || 'AI Algorithm'} Results
+                  
+
+
+                  
+
+
+                    
+
+
+                      Places Optimized:
+                      {optimizedRoute.route.length}
+                    
+
+
+                    
+
+
+                      Efficiency:
+                      {optimizedRoute.efficiency || 0}%
+                    
+
+
+                    {optimizedRoute.metrics && (
+                      <>
+                        
+
+
+                          Total Distance:
+                          {optimizedRoute.metrics.totalDistance?.toFixed(1) || 0} km
+                        
+
+
+                        
+
+
+                          Total Time:
+                          {Math.ceil((optimizedRoute.metrics.totalTime || 0) / 60)} hours
+                        
+
+
+                      
+                    )}
+                  
+
+
+                
+
+
+
+                {/* Route List */}
+                
+
+
+                  {/* Start Location - Dynamic */}
+                  
+
+
+                    
+
+
+                      
+                    
+
+
+                    
+
+
+                      
+
+Start: {standardizedCurrentLocation.name}
+
+
+                      
+
+{standardizedCurrentLocation.district}, {standardizedCurrentLocation.state}
+
+
+                      
+
+{standardizedCurrentLocation.description}
+
+
+                      
+
+
+                        Lat: {standardizedCurrentLocation.latitude.toFixed(4)}, Lng: {standardizedCurrentLocation.longitude.toFixed(4)}
+                      
+
+
+                    
+
+
+                    
+
+
+                      
+
+{routeSettings.startTime}
+
+
+                    
+
+
+                  
+
+
+
+                  {/* Route Places */}
+                  {optimizedRoute.route.map((place, index) => (
+                    
+
+
+                      
+
+
+                        {index + 1}
+                      
+
+
+                      
+
+
+                        
+
+{place.name}
+
+
+                        
+
+{place.city || 'Unknown'}, {place.state || 'Unknown'}
+
+
+                        
+
+
+                          ⭐ {place.rating || 'N/A'}
+                          🕒 {place.averageVisitDuration}min
+                          🏷️ {place.category || 'Unknown'}
+                        
+
+
+                        
+
+
+                          Lat: {place.latitude.toFixed(4)}, Lng: {place.longitude.toFixed(4)}
+                        
+
+
+                      
+
+
+                      
+
+
+                        {place.entryFee && (
+                          
+
+₹{place.entryFee.indian || place.entryFee.amount || 0}
+
+
+                        )}
+                      
+
+
+                    
+
+
+                  ))}
+                
+
+
+              
+
+
+            
+
+
+
+            {/* AI Insights & Actions */}
+            
+
+
+              
+              {/* AI Insights */}
+              {optimizedRoute.aiInsights && Object.keys(optimizedRoute.aiInsights).length > 0 && (
+                
+
+
+                  
+
+
+                    
+                    AI Insights
+                  
+
+
+                  
+                  {optimizedRoute.aiInsights.tripOverview && (
+                    
+
+
+                      
+
+Trip Overview
+
+
+                      
+
+{optimizedRoute.aiInsights.tripOverview}
+
+
+                    
+
+
+                  )}
+
+                  {optimizedRoute.aiInsights.recommendations && optimizedRoute.aiInsights.recommendations.length > 0 && (
+                    
+
+
+                      
+
+Recommendations
+
+
+                      
+
+
+                        {optimizedRoute.aiInsights.recommendations.slice(0, 3).map((rec, index) => (
+                          
+
+
+                            
+                            {rec}
+                          
+
+
+                        ))}
+                      
+
+
+                    
+
+
+                  )}
+
+                  {optimizedRoute.aiInsights.budgetEstimate && (
+                    
+
+
+                      
+
+Budget Estimate
+
+
+                      
+
+
+                        ₹{optimizedRoute.aiInsights.budgetEstimate.total || 'N/A'}
+                      
+
+
+                      
+
+Including entry fees, transport & meals
+
+
+                    
+
+
+                  )}
+                
+
+
+              )}
+
+              {/* Enhanced Quick Actions */}
+              
+
+
+                
+
+Quick Actions
+
+
+                
+                
+
+
+                  
+                    
+                    Generate Detailed AI Plan
+                  
+
+                  
+                    
+                    View Route on Interactive Map
+                  
+
+                  
+                    
+                    Modify Selection
+                  
+                
+
+
+
+                {/* Coordinate Validation Indicator */}
+                
+
+
+                  
+
+
+                    
+                    Route Validated
+                  
+
+
+                  
+
+
+                    All {optimizedRoute.route.length} destinations have verified GPS coordinates
+                  
+
+
+                
+
+
+              
+
+
+
+              {/* Enhanced Route Statistics */}
+              
+
+
+                
+
+Route Statistics
+
+
+                
+                
+
+
+                  
+
+
+                    
+
+{optimizedRoute.route.length}
+
+
+                    
+
+Places
+
+
+                  
+
+
+                  
+                  
+
+
+                    
+
+
+                      {Math.ceil((optimizedRoute.metrics?.totalTime || 0) / 60)}h
+                    
+
+
+                    
+
+Duration
+
+
+                  
+
+
+                  
+                  
+
+
+                    
+
+
+                      {optimizedRoute.metrics?.totalDistance?.toFixed(0) || 0}
+                    
+
+
+                    
+
+KM
+
+
+                  
+
+
+                  
+                  
+
+
+                    
+
+
+                      {[...new Set(optimizedRoute.route.map(p => p.city).filter(Boolean))].length}
+                    
+
+
+                    
+
+Cities
+
+
+                  
+
+
+                
+
+
+
+                {/* Enhanced Starting Location Info */}
+                
+
+
+                  
+
+
+                    
+                    Journey Starting Point
+                  
+
+
+                  
+
+
+                    {standardizedCurrentLocation.name}, {standardizedCurrentLocation.district}
+                  
+
+
+                  
+
+
+                    All distances calculated from validated GPS coordinates
+                  
+
+
+                  
+
+
+                    Lat: {standardizedCurrentLocation.latitude.toFixed(4)}, Lng: {standardizedCurrentLocation.longitude.toFixed(4)}
+                  
+
+
+                
+
+
+              
+
+
+            
+
+
+          
+
+
+        )}
+
+        {/* Detailed View */}
+        {currentView === 'detailed' && optimizedRoute && (
+          
+        )}
+
+        {/* Enhanced Error Display */}
+        {error && currentView === 'selection' && (
+          
+
+
+            
+
+
+              
+              
+
+
+                
+
+Optimization Error
+
+
+                
+
+{error}
+
+
+                
+
+
+                  This error might be caused by:
+                  
+
+
+                    
+
+Invalid coordinates in selected places
+
+
+                    
+
+Backend API connectivity issues
+
+
+                    
+
+Algorithm processing errors
+
+
+                  
+
+
+                
+
+
+                 {
+                    setError(null);
+                    setOptimizationStatus(null);
+                  }}
+                  className="mt-3 text-sm text-red-600 hover:text-red-800 underline"
+                >
+                  Dismiss Error
+                
+              
+
+
+            
+
+
+          
+
+
+        )}
+
+        {/* Enhanced Loading Overlay */}
+        {loading && currentView === 'results' && (
+          
+
+
+            
+
+
+              
+
+
+                
+                
+
+Optimizing Your Route
+
+
+                
+
+
+                  Our AI is analyzing {selectedPlaces.length} places with validated coordinates to create the perfect itinerary starting from {standardizedCurrentLocation.name}...
+                
+
+
+                
+
+
+                  
+
+
+                
+
+
+                
+
+
+                  
+
+Starting location: {standardizedCurrentLocation.name}, {standardizedCurrentLocation.state}
+
+
+                  
+
+Coordinates: {standardizedCurrentLocation.latitude.toFixed(4)}, {standardizedCurrentLocation.longitude.toFixed(4)}
+
+
+                
+
+
+              
+
+
+            
+
+
+          
+
+
+        )}
+
+        {/* Enhanced Success Message */}
+        {currentView === 'selection' && (
+          
+
+
+            
+
+
+              
+              
+
+
+                
+
+Ready to Plan Your Journey
+
+
+                
+
+
+                  Starting from {standardizedCurrentLocation.name} in {standardizedCurrentLocation.state} with validated GPS coordinates. 
+                  Select your destinations and let our AI optimize your route!
+                
+
+
+                
+
+
+                  Current coordinates: {standardizedCurrentLocation.latitude.toFixed(4)}, {standardizedCurrentLocation.longitude.toFixed(4)}
+                
+
+
+              
+
+
+              {availableLocations.length > 1 && (
+                 setShowLocationSelector(true)}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                >
+                  Change Location
+                
+              )}
+            
+
+
+          
+
+
+        )}
+
+        {/* Coordinate System Info */}
+        
+
+
+          
+
+
+            
+            
+
+
+              
+
+Enhanced Coordinate Validation System
+
+
+              
+
+
+                All locations use WGS84 (GPS) coordinate system with multi-format support and standardization. 
+                Current system validates {availableLocations.length} starting locations and {places.length} destination places.
+                Starting from: {standardizedCurrentLocation.name} ({standardizedCurrentLocation.latitude.toFixed(4)}, {standardizedCurrentLocation.longitude.toFixed(4)})
+              
+
+
+            
+
+
+          
+
+
+        
+
+
+      
+
+
+    
+
+
+  );
+};
+
+export default TripPlannerPage;
+---
 // Enhanced DetailedTripPlanner.jsx with AI Algorithm Justification - FIXED
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -35,6 +4081,8 @@ import {
   EyeOff,
   Activity
 } from 'lucide-react';
+
+import { apiService } from '../services/api';
 
 const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
   const [detailedPlan, setDetailedPlan] = useState(null);
@@ -84,17 +4132,8 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
       };
 
       // Call your backend API that integrates with Gemini
-      const response = await fetch('/api/trips/generate-detailed-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(geminiPayload)
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate detailed plan');
-      }
-
-      const result = await response.json();
+      // REPLACE WITH THIS
+const result = await apiService.generateDetailedTripPlan(geminiPayload);
 
       // Enhanced detailed plan structure
       const enhancedPlan = {
@@ -139,17 +4178,8 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
         explanationLevel: explanationDetail
       };
 
-      const response = await fetch('/api/trips/generate-algorithm-explanation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(explanationPayload)
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate algorithm explanation');
-      }
-
-      const result = await response.json();
+      // REPLACE WITH THIS
+      const result = await apiService.generateAlgorithmExplanation(explanationPayload);
       setAlgorithmExplanation(result.data);
 
     } catch (error) {
@@ -480,258 +4510,491 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
 
   if (!optimizedRoute?.route || optimizedRoute.route.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="text-center py-12">
-          <Brain className="mx-auto mb-4 text-gray-400" size={48} />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Route Optimized</h3>
-          <p className="text-gray-600">
+      
+
+
+        
+
+
+          
+          
+
+No Route Optimized
+
+
+          
+
+
             Please optimize a route first to see the detailed trip plan.
-          </p>
-        </div>
-      </div>
+          
+
+
+        
+
+
+      
+
+
     );
   }
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="text-center py-12">
-          <Loader className="mx-auto mb-4 text-blue-600 animate-spin" size={48} />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Generating Detailed Plan</h3>
-          <p className="text-gray-600">
+      
+
+
+        
+
+
+          
+          
+
+Generating Detailed Plan
+
+
+          
+
+
             Our AI is creating your personalized trip itinerary...
-          </p>
-        </div>
-      </div>
+          
+
+
+        
+
+
+      
+
+
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="text-center py-12">
-          <AlertCircle className="mx-auto mb-4 text-red-500" size={48} />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Plan Generation Failed</h3>
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={generateDetailedPlan}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
+      
+
+
+        
+
+
+          
+          
+
+Plan Generation Failed
+
+
+          
+
+{error}
+
+
+          
             Try Again
-          </button>
-        </div>
-      </div>
+          
+        
+
+
+      
+
+
     );
   }
 
   if (!detailedPlan) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="text-center py-12">
-          <Brain className="mx-auto mb-4 text-gray-400" size={48} />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Plan Not Available</h3>
-          <p className="text-gray-600">
+      
+
+
+        
+
+
+          
+          
+
+Plan Not Available
+
+
+          
+
+
             Unable to generate detailed plan. Please try again.
-          </p>
-        </div>
-      </div>
+          
+
+
+        
+
+
+      
+
+
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border">
+    
+
+
       {/* Header */}
-      <div className="p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <Brain className="text-purple-600" size={28} />
+      
+
+
+        
+
+
+          
+
+
+            
+
+
+              
               AI-Powered Trip Plan
-            </h2>
-            <p className="text-gray-600 mt-1">
+            
+
+
+            
+
+
               Comprehensive itinerary with algorithm insights
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => setShowAlgorithmJustification(!showAlgorithmJustification)}
+            
+
+
+          
+
+
+          
+
+
+             setShowAlgorithmJustification(!showAlgorithmJustification)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-sm hover:shadow-md transition-shadow ${
                 showAlgorithmJustification ? 'bg-purple-600 text-white' : 'bg-white'
               }`}
             >
-              <Brain size={18} />
+              
               {showAlgorithmJustification ? 'Hide' : 'Show'} AI Logic
-            </button>
-            <button className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <Download size={18} />
+            
+            
+              
               Export
-            </button>
-            <button className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <Share size={18} />
+            
+            
+              
               Share
-            </button>
-          </div>
-        </div>
+            
+          
+
+
+        
+
+
 
         {/* Quick Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-          <div className="bg-white p-3 rounded-lg shadow-sm">
-            <div className="flex items-center gap-2">
-              <MapPin className="text-blue-600" size={16} />
-              <span className="text-sm font-medium">{optimizedRoute.route.length} Places</span>
-            </div>
-          </div>
-          <div className="bg-white p-3 rounded-lg shadow-sm">
-            <div className="flex items-center gap-2">
-              <Clock className="text-green-600" size={16} />
-              <span className="text-sm font-medium">{Math.ceil(routeSettings.totalTimeAvailable / 60)} Hours</span>
-            </div>
-          </div>
-          <div className="bg-white p-3 rounded-lg shadow-sm">
-            <div className="flex items-center gap-2">
-              <Navigation className="text-purple-600" size={16} />
-              <span className="text-sm font-medium">{optimizedRoute.metrics?.totalDistance?.toFixed(0) || 0} KM</span>
-            </div>
-          </div>
-          <div className="bg-white p-3 rounded-lg shadow-sm">
-            <div className="flex items-center gap-2">
-              <IndianRupee className="text-orange-600" size={16} />
-              <span className="text-sm font-medium">₹{calculateTotalCost(optimizedRoute.route)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+        
+
+
+          
+
+
+            
+
+
+              
+              {optimizedRoute.route.length} Places
+            
+
+
+          
+
+
+          
+
+
+            
+
+
+              
+              {Math.ceil(routeSettings.totalTimeAvailable / 60)} Hours
+            
+
+
+          
+
+
+          
+
+
+            
+
+
+              
+              {optimizedRoute.metrics?.totalDistance?.toFixed(0) || 0} KM
+            
+
+
+          
+
+
+          
+
+
+            
+
+
+              
+              ₹{calculateTotalCost(optimizedRoute.route)}
+            
+
+
+          
+
+
+        
+
+
+      
+
+
 
       {/* AI Algorithm Justification Section */}
       {showAlgorithmJustification && (
-        <div className="p-6 border-b bg-gradient-to-r from-purple-50 to-blue-50">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold flex items-center gap-2">
-              <Brain className="text-purple-600" size={24} />
+        
+
+
+          
+
+
+            
+
+
+              
               AI Algorithm Explanation
-            </h3>
-            <div className="flex items-center gap-3">
-              <select
-                value={explanationDetail}
-                onChange={(e) => {
+            
+
+
+            
+
+
+               {
                   setExplanationDetail(e.target.value);
                   generateAlgorithmExplanation();
                 }}
                 className="px-3 py-1 text-sm border border-gray-300 rounded-lg"
               >
-                <option value="simple">Simple</option>
-                <option value="detailed">Detailed</option>
-                <option value="technical">Technical</option>
-              </select>
-              <button
-                onClick={() => setExplanationExpanded(!explanationExpanded)}
+                Simple
+                Detailed
+                Technical
+              
+               setExplanationExpanded(!explanationExpanded)}
                 className="flex items-center gap-1 px-2 py-1 text-sm text-gray-600 hover:text-gray-800"
               >
-                {explanationExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                {explanationExpanded ?  : }
                 {explanationExpanded ? 'Collapse' : 'Expand'}
-              </button>
-            </div>
-          </div>
+              
+            
+
+
+          
+
+
 
           {loadingExplanation ? (
-            <div className="flex items-center gap-3 p-4 bg-white rounded-lg">
-              <Loader className="animate-spin text-purple-600" size={20} />
-              <span className="text-gray-700">Generating AI explanation...</span>
-            </div>
+            
+
+
+              
+              Generating AI explanation...
+            
+
+
           ) : algorithmExplanation ? (
-            <div className="bg-white rounded-lg p-6 shadow-sm">
-              <div className="mb-4">
-                <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <Zap className="text-yellow-500" size={18} />
+            
+
+
+              
+
+
+                
+
+
+                  
                   {algorithmExplanation.title}
-                </h4>
-                <p className="text-gray-700 text-sm leading-relaxed">
+                
+
+
+                
+
+
                   {algorithmExplanation.summary}
-                </p>
-              </div>
+                
+
+
+              
+
+
 
               {explanationExpanded && (
                 <>
                   {/* Step-by-step reasoning */}
-                  <div className="mb-6">
-                    <h5 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
-                      <Route className="text-blue-600" size={16} />
+                  
+
+
+                    
+
+
+                      
                       Step-by-Step Decision Process
-                    </h5>
-                    <div className="space-y-4">
+                    
+
+
+                    
+
+
                       {algorithmExplanation.reasoning?.map((step, index) => (
-                        <div key={index} className="flex gap-4">
-                          <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 font-semibold text-sm">{step.step}</span>
-                          </div>
-                          <div className="flex-grow">
-                            <h6 className="font-medium text-gray-900">{step.decision}</h6>
-                            <p className="text-gray-600 text-sm mt-1">{step.explanation}</p>
+                        
+
+
+                          
+
+
+                            {step.step}
+                          
+
+
+                          
+
+
+                            
+
+{step.decision}
+
+
+                            
+
+{step.explanation}
+
+
                             {step.factors && (
-                              <div className="flex flex-wrap gap-2 mt-2">
+                              
+
+
                                 {step.factors.map((factor, idx) => (
-                                  <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                  
                                     {factor}
-                                  </span>
+                                  
                                 ))}
-                              </div>
+                              
+
+
                             )}
-                          </div>
-                        </div>
+                          
+
+
+                        
+
+
                       ))}
-                    </div>
-                  </div>
+                    
+
+
+                  
+
+
 
                   {/* Algorithm optimizations */}
                   {algorithmExplanation.optimizations && (
-                    <div className="mb-6">
-                      <h5 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
-                        <Target className="text-green-600" size={16} />
+                    
+
+
+                      
+
+
+                        
                         Optimization Factors Considered
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      
+
+
+                      
+
+
                         {algorithmExplanation.optimizations.map((optimization, index) => (
-                          <div key={index} className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
-                            <CheckCircle className="text-green-600 flex-shrink-0" size={16} />
-                            <span className="text-green-800 text-sm">{optimization}</span>
-                          </div>
+                          
+
+
+                            
+                            {optimization}
+                          
+
+
                         ))}
-                      </div>
-                    </div>
+                      
+
+
+                    
+
+
                   )}
 
                   {/* Practical tips from algorithm */}
                   {algorithmExplanation.tips && (
-                    <div>
-                      <h5 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
-                        <Lightbulb className="text-yellow-600" size={16} />
+                    
+
+
+                      
+
+
+                        
                         AI-Generated Tips
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      
+
+
+                      
+
+
                         {algorithmExplanation.tips.map((tip, index) => (
-                          <div key={index} className="flex items-start gap-2 p-3 bg-yellow-50 rounded-lg">
-                            <Info className="text-yellow-600 flex-shrink-0 mt-0.5" size={14} />
-                            <span className="text-yellow-800 text-sm">{tip}</span>
-                          </div>
+                          
+
+
+                            
+                            {tip}
+                          
+
+
                         ))}
-                      </div>
-                    </div>
+                      
+
+
+                    
+
+
                   )}
-                </>
+                
               )}
-            </div>
+            
+
+
           ) : (
-            <div className="bg-white rounded-lg p-6 text-center">
-              <MessageSquare className="mx-auto mb-2 text-gray-400" size={24} />
-              <p className="text-gray-600">Algorithm explanation not available</p>
-            </div>
+            
+
+
+              
+              
+
+Algorithm explanation not available
+
+
+            
+
+
           )}
-        </div>
+        
+
+
       )}
 
       {/* Tab Navigation */}
-      <div className="border-b">
-        <nav className="flex space-x-8 px-6">
+      
+
+
+        
           {[
             { id: 'timeline', label: 'Timeline', icon: Clock },
             { id: 'insights', label: 'Insights', icon: Target },
@@ -740,383 +5003,926 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
           ].map(tab => {
             const Icon = tab.icon;
             return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+               setActiveTab(tab.id)}
                 className={`flex items-center gap-2 py-4 border-b-2 transition-colors ${
                   activeTab === tab.id 
                     ? 'border-blue-600 text-blue-600' 
                     : 'border-transparent text-gray-600 hover:text-gray-900'
                 }`}
               >
-                <Icon size={16} />
+                
                 {tab.label}
-              </button>
+              
             );
           })}
-        </nav>
-      </div>
+        
+      
+
+
 
       {/* Tab Content */}
-      <div className="p-6">
+      
+
+
         {/* Timeline Tab */}
         {activeTab === 'timeline' && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Calendar className="text-blue-600" size={24} />
-              <h3 className="text-xl font-semibold">Day-by-Day Timeline</h3>
-            </div>
+          
 
-            <div className="space-y-4">
+
+            
+
+
+              
+              
+
+Day-by-Day Timeline
+
+
+            
+
+
+
+            
+
+
               {detailedPlan.timeline.map((item, index) => (
-                <div key={index} className="flex gap-4">
+                
+
+
                   {/* Time Column */}
-                  <div className="flex-shrink-0 w-20 text-center">
-                    <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg text-sm font-medium">
+                  
+
+
+                    
+
+
                       {item.time}
-                    </div>
+                    
+
+
                     {item.endTime && (
-                      <div className="text-xs text-gray-500 mt-1">
+                      
+
+
                         to {item.endTime}
-                      </div>
+                      
+
+
                     )}
-                  </div>
+                  
+
+
 
                   {/* Content Column */}
-                  <div className="flex-grow">
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h4 className="font-semibold text-gray-900">{item.place.name}</h4>
-                          <p className="text-sm text-gray-600">{item.place.city}, {item.place.state}</p>
-                        </div>
-                        <div className="flex items-center gap-1 text-yellow-500">
-                          <Star size={14} fill="currentColor" />
-                          <span className="text-sm font-medium">{item.place.rating}</span>
-                        </div>
-                      </div>
+                  
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    
+
+
+                      
+
+
+                        
+
+
+                          
+
+{item.place.name}
+
+
+                          
+
+{item.place.city}, {item.place.state}
+
+
+                        
+
+
+                        
+
+
+                          
+                          {item.place.rating}
+                        
+
+
+                      
+
+
+
+                      
+
+
                         {/* Activities */}
-                        <div>
-                          <h5 className="font-medium text-gray-800 mb-2">Activities</h5>
-                          <ul className="space-y-1">
+                        
+
+
+                          
+
+Activities
+
+
+                          
+
+
                             {item.activities.map((activity, idx) => (
-                              <li key={idx} className="text-sm text-gray-600 flex items-center gap-2">
-                                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                              
+
+
+                                
+
+
                                 {activity}
-                              </li>
+                              
+
+
                             ))}
-                          </ul>
-                        </div>
+                          
+
+
+                        
+
+
 
                         {/* Tips */}
-                        <div>
-                          <h5 className="font-medium text-gray-800 mb-2">Tips</h5>
-                          <ul className="space-y-1">
-                            {item.tips.map((tip, idx) => (
-                              <li key={idx} className="text-sm text-gray-600 flex items-center gap-2">
-                                <div className="w-1 h-1 bg-green-500 rounded-full"></div>
-                                {tip}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
+                        
 
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="flex items-center justify-between text-sm text-gray-600">
-                          <span>Duration: {item.duration} minutes</span>
+
+                          
+
+Tips
+
+
+                          
+
+
+                            {item.tips.map((tip, idx) => (
+                              
+
+
+                                
+
+
+                                {tip}
+                              
+
+
+                            ))}
+                          
+
+
+                        
+
+
+                      
+
+
+
+                      
+
+
+                        
+
+
+                          Duration: {item.duration} minutes
                           {item.place.entryFee && (
-                            <span>Entry: ₹{item.place.entryFee.indian || item.place.entryFee.amount || 0}</span>
+                            Entry: ₹{item.place.entryFee.indian || item.place.entryFee.amount || 0}
                           )}
-                        </div>
-                      </div>
-                    </div>
+                        
+
+
+                      
+
+
+                    
+
+
 
                     {/* Travel Info */}
                     {item.travel && index < detailedPlan.timeline.length - 1 && (
-                      <div className="flex items-center gap-2 mt-3 ml-4">
-                        <div className="flex items-center gap-2 bg-blue-50 px-3 py-1 rounded-full text-sm text-blue-700">
-                          <Navigation size={14} />
-                          <span>{item.travel.duration} min drive</span>
-                          <span>•</span>
-                          <span>{item.travel.distance} km</span>
-                        </div>
-                        <ChevronRight className="text-gray-400" size={16} />
-                      </div>
+                      
+
+
+                        
+
+
+                          
+                          {item.travel.duration} min drive
+                          •
+                          {item.travel.distance} km
+                        
+
+
+                        
+                      
+
+
                     )}
-                  </div>
-                </div>
+                  
+
+
+                
+
+
               ))}
-            </div>
-          </div>
+            
+
+
+          
+
+
         )}
 
         {/* Insights Tab */}
         {activeTab === 'insights' && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Target className="text-green-600" size={24} />
-              <h3 className="text-xl font-semibold">Trip Insights</h3>
-            </div>
+          
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">
-                <h4 className="font-semibold text-blue-800 mb-2">Experience Level</h4>
-                <p className="text-2xl font-bold text-blue-900">{detailedPlan.insights.experienceLevel}</p>
-                <p className="text-sm text-blue-700">Based on ratings and variety</p>
-              </div>
 
-              <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg">
-                <h4 className="font-semibold text-green-800 mb-2">Cities Covered</h4>
-                <p className="text-2xl font-bold text-green-900">{detailedPlan.insights.cityCount}</p>
-                <p className="text-sm text-green-700">Different cities in your journey</p>
-              </div>
+            
 
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg">
-                <h4 className="font-semibold text-purple-800 mb-2">Average Rating</h4>
-                <p className="text-2xl font-bold text-purple-900">⭐ {detailedPlan.insights.averageRating}</p>
-                <p className="text-sm text-purple-700">Quality of selected places</p>
-              </div>
-            </div>
 
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-semibold text-gray-800 mb-3">Categories Covered</h4>
-              <div className="flex flex-wrap gap-2">
+              
+              
+
+Trip Insights
+
+
+            
+
+
+
+            
+
+
+              
+
+
+                
+
+Experience Level
+
+
+                
+
+{detailedPlan.insights.experienceLevel}
+
+
+                
+
+Based on ratings and variety
+
+
+              
+
+
+
+              
+
+
+                
+
+Cities Covered
+
+
+                
+
+{detailedPlan.insights.cityCount}
+
+
+                
+
+Different cities in your journey
+
+
+              
+
+
+
+              
+
+
+                
+
+Average Rating
+
+
+                
+
+⭐ {detailedPlan.insights.averageRating}
+
+
+                
+
+Quality of selected places
+
+
+              
+
+
+            
+
+
+
+            
+
+
+              
+
+Categories Covered
+
+
+              
+
+
                 {detailedPlan.insights.categories.map(category => (
-                  <span key={category} className="bg-white px-3 py-1 rounded-full text-sm capitalize border">
+                  
                     {category.replace('-', ' ')}
-                  </span>
+                  
                 ))}
-              </div>
-            </div>
-          </div>
+              
+
+
+            
+
+
+          
+
+
         )}
 
         {/* Recommendations Tab */}
         {activeTab === 'recommendations' && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Info className="text-orange-600" size={24} />
-              <h3 className="text-xl font-semibold">Recommendations & Tips</h3>
-            </div>
+          
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            
+
+
+              
+              
+
+Recommendations & Tips
+
+
+            
+
+
+
+            
+
+
               {/* Photography Spots */}
               {detailedPlan.recommendations.photography.length > 0 && (
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Camera className="text-pink-600" size={18} />
+                
+
+
+                  
+
+
+                    
                     Best Photography Spots
-                  </h4>
-                  <div className="space-y-2">
+                  
+
+
+                  
+
+
                     {detailedPlan.recommendations.photography.map(place => (
-                      <div key={place.id} className="flex items-center gap-3 p-2 bg-white rounded">
-                        <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
-                        <span className="text-sm">{place.name}</span>
-                      </div>
+                      
+
+
+                        
+
+
+                        {place.name}
+                      
+
+
                     ))}
-                  </div>
-                </div>
+                  
+
+
+                
+
+
               )}
 
               {/* Cultural Sites */}
               {detailedPlan.recommendations.cultural.length > 0 && (
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Info className="text-orange-600" size={18} />
+                
+
+
+                  
+
+
+                    
                     Cultural Experiences
-                  </h4>
-                  <div className="space-y-2">
+                  
+
+
+                  
+
+
                     {detailedPlan.recommendations.cultural.map(place => (
-                      <div key={place.id} className="flex items-center gap-3 p-2 bg-white rounded">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                        <span className="text-sm">{place.name}</span>
-                      </div>
+                      
+
+
+                        
+
+
+                        {place.name}
+                      
+
+
                     ))}
-                  </div>
-                </div>
+                  
+
+
+                
+
+
               )}
-            </div>
+            
+
+
 
             {/* General Tips */}
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <h4 className="font-semibold text-yellow-800 mb-3">General Tips</h4>
-              <ul className="space-y-2">
+            
+
+
+              
+
+General Tips
+
+
+              
+
+
                 {detailedPlan.recommendations.timing.map((tip, index) => (
-                  <li key={index} className="text-sm text-yellow-700 flex items-center gap-2">
-                    <CheckCircle size={14} className="text-yellow-600" />
+                  
+
+
+                    
                     {tip}
-                  </li>
+                  
+
+
                 ))}
-              </ul>
-            </div>
+              
+
+
+            
+
+
 
             {/* Cultural Tips */}
-            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-              <h4 className="font-semibold text-purple-800 mb-3">Cultural Tips</h4>
-              <ul className="space-y-2">
+            
+
+
+              
+
+Cultural Tips
+
+
+              
+
+
                 {detailedPlan.cultural.map((tip, index) => (
-                  <li key={index} className="text-sm text-purple-700 flex items-center gap-2">
-                    <Info size={14} className="text-purple-600" />
+                  
+
+
+                    
                     {tip}
-                  </li>
+                  
+
+
                 ))}
-              </ul>
-            </div>
-          </div>
+              
+
+
+            
+
+
+          
+
+
         )}
 
         {/* Logistics Tab */}
         {activeTab === 'logistics' && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 mb-6">
-              <MapIcon className="text-red-600" size={24} />
-              <h3 className="text-xl font-semibold">Logistics & Practical Info</h3>
-            </div>
+          
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
-                    <Navigation size={18} />
+
+            
+
+
+              
+              
+
+Logistics & Practical Info
+
+
+            
+
+
+
+            
+
+
+              
+
+
+                
+
+
+                  
+
+
+                    
                     Transportation
-                  </h4>
-                  <p className="text-blue-700">{detailedPlan.logistics.transportation}</p>
-                </div>
+                  
 
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
-                    <Utensils size={18} />
+
+                  
+
+{detailedPlan.logistics.transportation}
+
+
+                
+
+
+
+                
+
+
+                  
+
+
+                    
                     Food & Dining
-                  </h4>
-                  <p className="text-green-700">{detailedPlan.logistics.food}</p>
-                </div>
+                  
 
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
-                    <Coffee size={18} />
+
+                  
+
+{detailedPlan.logistics.food}
+
+
+                
+
+
+
+                
+
+
+                  
+
+
+                    
                     Shopping
-                  </h4>
-                  <p className="text-purple-700">{detailedPlan.logistics.shopping}</p>
-                </div>
-              </div>
+                  
 
-              <div className="space-y-4">
-                <div className="bg-orange-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-orange-800 mb-2 flex items-center gap-2">
-                    <Fuel size={18} />
+
+                  
+
+{detailedPlan.logistics.shopping}
+
+
+                
+
+
+              
+
+
+
+              
+
+
+                
+
+
+                  
+
+
+                    
                     Parking
-                  </h4>
-                  <p className="text-orange-700">{detailedPlan.logistics.parking}</p>
-                </div>
+                  
 
-                <div className="bg-red-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
-                    <AlertCircle size={18} />
+
+                  
+
+{detailedPlan.logistics.parking}
+
+
+                
+
+
+
+                
+
+
+                  
+
+
+                    
                     Emergency Info
-                  </h4>
-                  <p className="text-red-700">{detailedPlan.logistics.emergency}</p>
-                </div>
+                  
 
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-gray-800 mb-2">Facilities</h4>
-                  <p className="text-gray-700">{detailedPlan.logistics.restrooms}</p>
-                </div>
-              </div>
-            </div>
+
+                  
+
+{detailedPlan.logistics.emergency}
+
+
+                
+
+
+
+                
+
+
+                  
+
+Facilities
+
+
+                  
+
+{detailedPlan.logistics.restrooms}
+
+
+                
+
+
+              
+
+
+            
+
+
 
             {/* Budget Breakdown */}
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg">
-              <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <IndianRupee size={20} className="text-green-600" />
+            
+
+
+              
+
+
+                
                 Estimated Budget Breakdown
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <h5 className="text-sm font-medium text-gray-600 mb-1">Entry Fees</h5>
-                  <p className="text-xl font-bold text-green-600">₹{calculateTotalCost(optimizedRoute.route)}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <h5 className="text-sm font-medium text-gray-600 mb-1">Transportation</h5>
-                  <p className="text-xl font-bold text-blue-600">₹{Math.round((optimizedRoute.metrics?.totalDistance || 0) * 8)}</p>
-                  <p className="text-xs text-gray-500">Est. ₹8/km</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <h5 className="text-sm font-medium text-gray-600 mb-1">Food & Misc</h5>
-                  <p className="text-xl font-bold text-orange-600">₹{optimizedRoute.route.length * 300}</p>
-                  <p className="text-xs text-gray-500">Est. ₹300/place</p>
-                </div>
-              </div>
-              <div className="mt-4 p-3 bg-white rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-800">Total Estimated Cost:</span>
-                  <span className="text-2xl font-bold text-purple-600">
+              
+
+
+              
+
+
+                
+
+
+                  
+
+Entry Fees
+
+
+                  
+
+₹{calculateTotalCost(optimizedRoute.route)}
+
+
+                
+
+
+                
+
+
+                  
+
+Transportation
+
+
+                  
+
+₹{Math.round((optimizedRoute.metrics?.totalDistance || 0) * 8)}
+
+
+                  
+
+Est. ₹8/km
+
+
+                
+
+
+                
+
+
+                  
+
+Food & Misc
+
+
+                  
+
+₹{optimizedRoute.route.length * 300}
+
+
+                  
+
+Est. ₹300/place
+
+
+                
+
+
+              
+
+
+              
+
+
+                
+
+
+                  Total Estimated Cost:
+                  
                     ₹{calculateTotalCost(optimizedRoute.route) + Math.round((optimizedRoute.metrics?.totalDistance || 0) * 8) + (optimizedRoute.route.length * 300)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+                  
+                
+
+
+              
+
+
+            
+
+
+          
+
+
         )}
-      </div>
+      
+
+
 
       {/* Action Buttons - REMOVED START TRIP BUTTON */}
-      <div className="border-t bg-gray-50 p-6">
-        <div className="flex flex-wrap gap-3 justify-between items-center">
-          <div className="flex gap-3">
-            <button 
-              onClick={handleViewOnMap}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <MapIcon size={16} />
+      
+
+
+        
+
+
+          
+
+
+            
+              
               View on Map
-            </button>
-          </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => setShowAlgorithmJustification(!showAlgorithmJustification)}
+            
+          
+
+
+          
+
+
+             setShowAlgorithmJustification(!showAlgorithmJustification)}
               className="flex items-center gap-2 px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors"
             >
-              <Brain size={16} />
+              
               {showAlgorithmJustification ? 'Hide' : 'Show'} AI Logic
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              <Settings size={16} />
+            
+            
+              
               Customize
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              <Download size={16} />
+            
+            
+              
               Download PDF
-            </button>
-          </div>
-        </div>
-      </div>
+            
+          
+
+
+        
+
+
+      
+
+
 
       {/* AI Attribution */}
-      <div className="border-t bg-gradient-to-r from-purple-50 to-blue-50 p-4">
-        <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-          <Brain className="text-purple-600" size={16} />
-          <span>Powered by Gemini AI • Generated with {optimizedRoute.algorithm} algorithm</span>
+      
+
+
+        
+
+
+          
+          Powered by Gemini AI • Generated with {optimizedRoute.algorithm} algorithm
           {algorithmExplanation && (
             <>
-              <span>•</span>
-              <button 
-                onClick={() => setShowAlgorithmJustification(!showAlgorithmJustification)}
+              •
+               setShowAlgorithmJustification(!showAlgorithmJustification)}
                 className="text-purple-600 hover:text-purple-800 underline"
               >
                 View AI reasoning
-              </button>
-            </>
+              
+            
           )}
-        </div>
-      </div>
-    </div>
+        
+
+
+      
+
+
+    
+
+
   );
 };
 
 export default DetailedTripPlanner;
 ----
 
-iuwgfuiwefbehjv
+Tour With AI
+Open main menu
+Back
+AI-Powered Trip Planner
+Comprehensive AI-generated trip plan
+
+Starting Location
+Coimbatore Tidal Park - Coimbatore, Tamil Nadu
+
+Major IT hub and business center - Gateway to Western Ghats
+
+Lat: 11.0638, Lng: 77.0596
+Coordinates Validated & Standardized
+AI-Powered Trip Plan
+Comprehensive itinerary with algorithm insights
+
+Show AI Logic
+Export
+Share
+2 Places
+8 Hours
+453 KM
+₹30
+Timeline
+Insights
+Tips
+Logistics
+Day-by-Day Timeline
+09:00
+to 11:00
+Meenakshi Amman Temple
+Madurai, Tamil Nadu
+
+4.8
+Activities
+Worship and prayers
+Architecture photography
+Cultural exploration
+Tips
+Dress modestly
+Remove footwear
+Maintain silence
+Duration: 120 minutes
+Entry: ₹0
+45 min drive
+•
+25 km
+11:45
+to 13:45
+Brihadeeshwarar Temple
+Thanjavur, Tamil Nadu
+
+4.7
+Activities
+Worship and prayers
+Architecture photography
+Cultural exploration
+Tips
+Dress modestly
+Remove footwear
+Maintain silence
+Duration: 120 minutes
+Entry: ₹30
+View on Map
+Show AI Logic
+Customize
+Download PDF
+Powered by Gemini AI • Generated with nearestNeighbor algorithm
+•
+View AI reasoning
+Enhanced Coordinate Validation System
+All locations use WGS84 (GPS) coordinate system with multi-format support and standardization. Current system validates 10 starting locations and 20 destination places. Starting from: Coimbatore Tidal Park (11.0638, 77.0596)
+
+Tour With AI
+Discover South India with AI Intelligence
+
+AI Backend Connected
+Powered by Advanced AI Algorithms & OpenStreetMap
+
+© 2024 Tour With AI. All rights reserved.
+
+---
+in this page I need ht additional information to show 
