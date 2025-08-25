@@ -36,6 +36,8 @@ import {
   Activity
 } from 'lucide-react';
 
+import { apiService } from '../services/api';
+
 const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
   const [detailedPlan, setDetailedPlan] = useState(null);
   const [algorithmExplanation, setAlgorithmExplanation] = useState(null);
@@ -84,17 +86,8 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
       };
 
       // Call your backend API that integrates with Gemini
-      const response = await fetch('/api/trips/generate-detailed-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(geminiPayload)
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate detailed plan');
-      }
-
-      const result = await response.json();
+      // REPLACE WITH THIS
+const result = await apiService.generateDetailedTripPlan(geminiPayload);
 
       // Enhanced detailed plan structure
       const enhancedPlan = {
@@ -139,17 +132,8 @@ const DetailedTripPlanner = ({ optimizedRoute, routeSettings }) => {
         explanationLevel: explanationDetail
       };
 
-      const response = await fetch('/api/trips/generate-algorithm-explanation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(explanationPayload)
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate algorithm explanation');
-      }
-
-      const result = await response.json();
+      // REPLACE WITH THIS
+      const result = await apiService.generateAlgorithmExplanation(explanationPayload);
       setAlgorithmExplanation(result.data);
 
     } catch (error) {
