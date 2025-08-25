@@ -1,4 +1,4 @@
-// Fixed MapViewPage.jsx with Proper Coordinate Validation and Auto-Progress
+// Fixed MapViewPage.jsx - Complete Implementation with Enhanced Trip Data Handling
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
@@ -83,86 +83,243 @@ const MapViewPage = ({ isConnected, onRetry }) => {
   const progressIntervalRef = useRef(null);
   const countdownIntervalRef = useRef(null);
 
-  // Utility function to validate coordinates
+  // Enhanced utility function to validate coordinates with multiple format support
   const validateCoordinates = (lat, lng) => {
+    const latitude = typeof lat === 'number' ? lat : parseFloat(lat);
+    const longitude = typeof lng === 'number' ? lng : parseFloat(lng);
+    
     return (
-      typeof lat === 'number' && 
-      typeof lng === 'number' && 
-      !isNaN(lat) && 
-      !isNaN(lng) &&
-      lat >= -90 && lat <= 90 &&
-      lng >= -180 && lng <= 180
+      !isNaN(latitude) && 
+      !isNaN(longitude) &&
+      latitude >= -90 && latitude <= 90 &&
+      longitude >= -180 && longitude <= 180
     );
   };
 
-  // Utility function to safely parse coordinates
-  const safeParseCoordinates = (location) => {
-    if (!location) return null;
+  // Enhanced utility function to safely parse coordinates from multiple formats
+  const safeParseCoordinates = (locationData) => {
+    if (!locationData) {
+      console.warn('🔍 No location data provided to parse');
+      return null;
+    }
     
-    const lat = parseFloat(location.latitude);
-    const lng = parseFloat(location.longitude);
+    let lat, lng;
+    
+    // Format 1: Direct properties (USER_LOCATIONS format)
+    if (locationData.latitude !== undefined && locationData.longitude !== undefined) {
+      lat = parseFloat(locationData.latitude);
+      lng = parseFloat(locationData.longitude);
+    }
+    // Format 2: Nested coordinates object (backend format)
+    else if (locationData.coordinates) {
+      lat = parseFloat(locationData.coordinates.latitude);
+      lng = parseFloat(locationData.coordinates.longitude);
+    }
+    // Format 3: Location object (trip data format)
+    else if (locationData.location) {
+      lat = parseFloat(locationData.location.latitude);
+      lng = parseFloat(locationData.location.longitude);
+    }
+    // Format 4: Direct lat/lng (alternative format)
+    else if (locationData.lat !== undefined && locationData.lng !== undefined) {
+      lat = parseFloat(locationData.lat);
+      lng = parseFloat(locationData.lng);
+    }
+    // Format 5: Position array from standardized data
+    else if (locationData.position && Array.isArray(locationData.position)) {
+      lat = parseFloat(locationData.position[0]);
+      lng = parseFloat(locationData.position[1]);
+    }
+    else {
+      console.warn('🔍 Unknown coordinate format:', locationData);
+      return null;
+    }
     
     if (validateCoordinates(lat, lng)) {
       return [lat, lng];
     }
     
+    console.warn(`🔍 Invalid coordinates parsed: lat=${lat}, lng=${lng} from:`, locationData);
     return null;
   };
 
-  // Check for trip data on component mount
+  // FIXED: Enhanced trip data loading with better error handling and debugging
   useEffect(() => {
+    console.log('🔍 MapViewPage useEffect triggered:', { mapMode, tripMode });
+    
     if (mapMode === 'trip') {
-      const savedTripData = sessionStorage.getItem('tripMapData');
+      // Try multiple storage keys for compatibility
+      const possibleKeys = ['tripMapData', 'optimizedRoute', 'tripData'];
+      let savedTripData = null;
+      let foundKey = null;
+      
+      // Check all possible keys
+      for (const key of possibleKeys) {
+        const data = sessionStorage.getItem(key);
+        if (data) {
+          savedTripData = data;
+          foundKey = key;
+          console.log(`✅ Found trip data in sessionStorage with key: ${key}`);
+          break;
+        }
+      }
+      
+      // Also check localStorage as fallback
+      if (!savedTripData) {
+        for (const key of possibleKeys) {
+          const data = localStorage.getItem(key);
+          if (data) {
+            savedTripData = data;
+            foundKey = key;
+            console.log(`✅ Found trip data in localStorage with key: ${key}`);
+            break;
+          }
+        }
+      }
+      
+      console.log('📦 Available storage keys:');
+      console.log('SessionStorage keys:', Object.keys(sessionStorage));
+      console.log('LocalStorage keys:', Object.keys(localStorage));
+      
       if (savedTripData) {
         try {
           const parsedData = JSON.parse(savedTripData);
-          console.log('🗺️ Loading trip data for map:', parsedData);
+          console.log('🗺️ Parsed trip data for map:', parsedData);
           
-          // Validate trip data structure
-          if (!parsedData.startLocation || !parsedData.optimizedRoute) {
-            throw new Error('Invalid trip data structure');
+          // Enhanced validation with better error messages
+          if (!parsedData) {
+            throw new Error('Parsed data is null or undefined');
           }
           
-          setTripData(parsedData);
-          setTripMode(true);
-          generateTripWaypoints(parsedData);
+          // Check for different possible data structures
+          let startLocation, optimizedRoute, routeData;
           
-          // Clear the session storage after loading
-          sessionStorage.removeItem('tripMapData');
+          // Structure 1: Direct format from TripPlannerPage
+          if (parsedData.startLocation && parsedData.optimizedRoute) {
+            startLocation = parsedData.startLocation;
+            optimizedRoute = parsedData.optimizedRoute;
+            routeData = parsedData;
+          }
+          // Structure 2: Nested in route property
+          else if (parsedData.route && parsedData.route.startLocation && parsedData.route.optimizedRoute) {
+            startLocation = parsedData.route.startLocation;
+            optimizedRoute = parsedData.route.optimizedRoute;
+            routeData = parsedData.route;
+          }
+          // Structure 3: Direct route array
+          else if (Array.isArray(parsedData) && parsedData.length > 0) {
+            // Assume first item is start location if it has isStartLocation flag
+            const firstItem = parsedData[0];
+            if (firstItem.isStartLocation || firstItem.type === 'start') {
+              startLocation = firstItem;
+              optimizedRoute = parsedData.slice(1);
+              routeData = { startLocation, optimizedRoute, route: parsedData };
+            } else {
+              throw new Error('Array format detected but no clear start location found');
+            }
+          }
+          // Structure 4: Check if it's already processed waypoints
+          else if (parsedData.waypoints && Array.isArray(parsedData.waypoints)) {
+            console.log('🔄 Found pre-processed waypoints, using directly');
+            setTripWaypoints(parsedData.waypoints);
+            setTripData(parsedData);
+            setTripMode(true);
+            setRealTimeSchedule(parsedData.waypoints);
+            
+            // Set map center to first waypoint
+            if (parsedData.waypoints.length > 0 && parsedData.waypoints[0].position) {
+              setMapCenter(parsedData.waypoints[0].position);
+              setMapZoom(12);
+            }
+            
+            // Clear storage after successful load
+            if (foundKey.includes('session')) {
+              sessionStorage.removeItem(foundKey);
+            } else {
+              localStorage.removeItem(foundKey);
+            }
+            
+            setLoading(false);
+            return;
+          }
+          else {
+            throw new Error(`Invalid trip data structure. Expected startLocation and optimizedRoute, got keys: ${Object.keys(parsedData).join(', ')}`);
+          }
+          
+          // Validate start location coordinates
+          const startCoords = safeParseCoordinates(startLocation);
+          if (!startCoords) {
+            throw new Error(`Invalid start location coordinates: ${JSON.stringify(startLocation)}`);
+          }
+          
+          // Validate that we have places to visit
+          if (!optimizedRoute || !Array.isArray(optimizedRoute) || optimizedRoute.length === 0) {
+            throw new Error(`Invalid or empty optimized route: ${JSON.stringify(optimizedRoute)}`);
+          }
+          
+          console.log(`✅ Validated trip data: ${optimizedRoute.length} places, start: ${startLocation.name}`);
+          
+          setTripData(routeData);
+          setTripMode(true);
+          generateTripWaypoints(routeData);
+          
+          // Clear the storage after successful loading
+          if (foundKey.includes('session')) {
+            sessionStorage.removeItem(foundKey);
+          } else {
+            localStorage.removeItem(foundKey);
+          }
+          
         } catch (error) {
-          console.error('Failed to parse trip data:', error);
-          toast.error('Failed to load trip route: ' + error.message);
+          console.error('❌ Failed to parse trip data:', error);
+          console.error('❌ Raw data that failed:', savedTripData);
+          toast.error(`Failed to load trip route: ${error.message}`);
           setTripMode(false);
-          navigate('/map'); // Fallback to regular map
+          navigate('/map', { replace: true }); // Use replace to avoid back button issues
         }
       } else {
-        toast.error('No trip data found. Redirecting to regular map view.');
+        console.warn('⚠️ No trip data found in storage');
+        console.log('🔍 Available sessionStorage:', Object.keys(sessionStorage));
+        console.log('🔍 Available localStorage:', Object.keys(localStorage));
+        toast.error('No trip data found. Please create a trip first.');
         setTripMode(false);
-        navigate('/map'); // Redirect to regular map without mode parameter
+        // Don't redirect immediately, let user see the error
+        setTimeout(() => {
+          navigate('/trip-planner', { replace: true });
+        }, 3000);
       }
     }
+    
+    setLoading(false);
   }, [mapMode, navigate]);
 
-  // Generate trip waypoints from trip data with coordinate validation
+  // Enhanced trip waypoint generation with robust coordinate parsing
   const generateTripWaypoints = (data) => {
+    console.log('🛣️ Generating trip waypoints from:', data);
+    
     if (!data || !data.optimizedRoute || !data.startLocation) {
-      console.error('❌ Invalid trip data for waypoint generation');
+      console.error('❌ Invalid trip data for waypoint generation:', data);
+      toast.error('Trip data is incomplete');
       return;
     }
 
     const waypoints = [];
+    let validPlaceCount = 0;
     
-    // Validate and add start location
-    const startCoords = safeParseCoordinates(data.startLocation.location);
+    // Validate and add start location with enhanced format support
+    const startCoords = safeParseCoordinates(data.startLocation);
     if (!startCoords) {
-      console.error('❌ Invalid start location coordinates');
+      console.error('❌ Invalid start location coordinates:', data.startLocation);
       toast.error('Starting location has invalid coordinates. Cannot display on map.');
       return;
     }
 
+    console.log(`📍 Start location validated: ${data.startLocation.name} at ${startCoords[0]}, ${startCoords[1]}`);
+
+    // Add start location waypoint
     waypoints.push({
       id: data.startLocation.id || 'start-location',
-      name: data.startLocation.name,
+      name: data.startLocation.name || 'Starting Point',
       position: startCoords,
       type: 'start',
       order: 0,
@@ -174,19 +331,24 @@ const MapViewPage = ({ isConnected, onRetry }) => {
       status: 'pending'
     });
 
-    // Add optimized route places with timeline and coordinate validation
+    // Add optimized route places with enhanced coordinate validation
     let currentTime = new Date(Date.now() + 60 * 60 * 1000 + 10 * 60000); // Start + 10 mins
-    let validPlaceCount = 0;
+    
+    console.log(`🎯 Processing ${data.optimizedRoute.length} route places...`);
     
     data.optimizedRoute.forEach((place, index) => {
-      const placeCoords = safeParseCoordinates(place.location);
+      console.log(`🔍 Processing place ${index + 1}:`, place.name, place);
+      
+      // Try multiple coordinate parsing approaches
+      let placeCoords = safeParseCoordinates(place);
       
       if (!placeCoords) {
-        console.warn(`⚠️ Skipping place ${place.name} - invalid coordinates`);
+        console.warn(`⚠️ Skipping place ${place.name || 'Unknown'} - invalid coordinates:`, place);
         return;
       }
 
       validPlaceCount++;
+      console.log(`✅ Place ${validPlaceCount}: ${place.name} at ${placeCoords[0]}, ${placeCoords[1]}`);
       
       // Add 45 minutes travel time between locations
       currentTime = new Date(currentTime.getTime() + 45 * 60000);
@@ -197,16 +359,16 @@ const MapViewPage = ({ isConnected, onRetry }) => {
 
       waypoints.push({
         id: place.id || place._id || `place-${index}`,
-        name: place.name,
+        name: place.name || `Destination ${index + 1}`,
         position: placeCoords,
         type: 'destination',
         order: validPlaceCount,
         place: place,
         visitDuration: visitDuration,
-        category: place.category,
-        rating: place.rating,
-        city: place.city,
-        state: place.state,
+        category: place.category || 'attraction',
+        rating: place.rating || 'N/A',
+        city: place.city || 'Unknown',
+        state: place.state || 'Unknown',
         scheduledTime: arrivalTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
         timestamp: arrivalTime.getTime(),
         departureTime: departureTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
@@ -218,8 +380,11 @@ const MapViewPage = ({ isConnected, onRetry }) => {
 
     if (waypoints.length <= 1) {
       toast.error('No valid destinations found in route');
+      console.error('❌ Generated waypoints:', waypoints);
       return;
     }
+
+    console.log(`✅ Generated ${waypoints.length} valid trip waypoints (${validPlaceCount} destinations + start)`);
 
     setTripWaypoints(waypoints);
     setRealTimeSchedule(waypoints);
@@ -228,8 +393,13 @@ const MapViewPage = ({ isConnected, onRetry }) => {
     setMapCenter(startCoords);
     setMapZoom(12);
     
-    console.log(`✅ Generated ${waypoints.length} valid trip waypoints from ${data.startLocation.name}`);
-    console.log(`📊 ${validPlaceCount} out of ${data.optimizedRoute.length} places have valid coordinates`);
+    toast.success(`Trip route loaded: ${validPlaceCount} destinations from ${data.startLocation.name}!`);
+    
+    console.log('📊 Waypoint generation summary:');
+    console.log(`  - Total waypoints: ${waypoints.length}`);
+    console.log(`  - Valid destinations: ${validPlaceCount}/${data.optimizedRoute.length}`);
+    console.log(`  - Start location: ${data.startLocation.name}`);
+    console.log(`  - Map center: ${startCoords[0]}, ${startCoords[1]}`);
   };
 
   // Get current date/time context
@@ -253,7 +423,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
     };
   };
 
-  // Load places from API (for regular map mode) with coordinate validation
+  // Enhanced place loading with coordinate validation
   useEffect(() => {
     const loadPlaces = async () => {
       if (!isConnected || tripMode) {
@@ -266,22 +436,31 @@ const MapViewPage = ({ isConnected, onRetry }) => {
         const response = await apiService.getAllPlaces();
         
         if (response?.success && response?.places) {
+          // Enhanced place validation with coordinate checking
           const validPlaces = response.places.filter(place => {
-            const coords = safeParseCoordinates(place.location);
-            return coords !== null && place.name && place.id;
+            // Check multiple coordinate formats
+            const coords = safeParseCoordinates(place);
+            const hasValidData = place.name && (place.id || place._id);
+            
+            if (!coords && hasValidData) {
+              console.warn(`⚠️ Place ${place.name} has no valid coordinates:`, place);
+            }
+            
+            return coords !== null && hasValidData;
           });
           
           console.log(`✅ Loaded ${validPlaces.length} places with valid coordinates out of ${response.places.length} total`);
           setPlaces(validPlaces);
           setFilteredPlaces(validPlaces);
           
+          // Set map bounds if places available
           if (validPlaces.length > 0) {
             const bounds = calculateBounds(validPlaces);
             setMapCenter([bounds.centerLat, bounds.centerLng]);
             setMapZoom(bounds.zoom);
           }
         } else {
-          throw new Error('Invalid API response');
+          throw new Error('Invalid API response structure');
         }
       } catch (error) {
         console.error('❌ Failed to load places for map:', error);
@@ -294,7 +473,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
     loadPlaces();
   }, [isConnected, tripMode]);
 
-  // Calculate optimal map bounds with coordinate validation
+  // Enhanced bounds calculation with coordinate validation
   const calculateBounds = (places) => {
     if (places.length === 0) {
       return { 
@@ -304,11 +483,13 @@ const MapViewPage = ({ isConnected, onRetry }) => {
       };
     }
 
+    // Get valid coordinates from places
     const validCoords = places
-      .map(p => safeParseCoordinates(p.location))
+      .map(place => safeParseCoordinates(place))
       .filter(coords => coords !== null);
 
     if (validCoords.length === 0) {
+      console.warn('⚠️ No valid coordinates found for bounds calculation');
       return { 
         centerLat: DEFAULT_COORDINATES.lat, 
         centerLng: DEFAULT_COORDINATES.lng, 
@@ -362,8 +543,8 @@ const MapViewPage = ({ isConnected, onRetry }) => {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(place =>
         place.name.toLowerCase().includes(search) ||
-        place.city.toLowerCase().includes(search) ||
-        place.state.toLowerCase().includes(search) ||
+        (place.city && place.city.toLowerCase().includes(search)) ||
+        (place.state && place.state.toLowerCase().includes(search)) ||
         (place.description && place.description.toLowerCase().includes(search))
       );
     }
@@ -583,7 +764,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
     });
   };
 
-  // Create regular place icon
+  // Create regular place icon with enhanced category support
   const createRegularIcon = (place) => {
     const config = CATEGORY_CONFIG[place.category] || CATEGORY_CONFIG['temple'] || { color: '#6b7280', icon: '●' };
     
@@ -816,7 +997,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                     {tripData.algorithm || 'AI-Optimized'} Route
                   </h3>
                   <p className="text-blue-700 text-sm mt-1">
-                    Starting from {tripData.startLocation.name} • {tripWaypoints.length} destinations
+                    Starting from {tripData.startLocation?.name || 'Unknown Location'} • {tripWaypoints.length} destinations
                   </p>
                   {tripData.metrics && (
                     <div className="flex gap-4 text-xs text-blue-600 mt-2">
@@ -910,6 +1091,21 @@ const MapViewPage = ({ isConnected, onRetry }) => {
           )}
         </div>
 
+        {/* Debug Info for Trip Mode (only in development) */}
+        {process.env.NODE_ENV === 'development' && tripMode && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h4 className="font-medium text-yellow-800 mb-2">🐛 Debug Info</h4>
+            <div className="text-xs text-yellow-700 space-y-1">
+              <div><strong>Trip Mode:</strong> {tripMode ? 'Yes' : 'No'}</div>
+              <div><strong>Trip Data:</strong> {tripData ? 'Loaded' : 'Not Loaded'}</div>
+              <div><strong>Waypoints:</strong> {tripWaypoints.length}</div>
+              <div><strong>Map Mode Param:</strong> {mapMode}</div>
+              <div><strong>Session Storage Keys:</strong> {Object.keys(sessionStorage).join(', ') || 'None'}</div>
+              <div><strong>Local Storage Keys:</strong> {Object.keys(localStorage).join(', ') || 'None'}</div>
+            </div>
+          </div>
+        )}
+
         {/* Map Container */}
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
           {loading ? (
@@ -942,7 +1138,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                       icon={createCustomIcon(waypoint, index)}
                     >
                       <Popup>
-                        <div className="min-w-[250px]">
+                        <div className="min-w-[280px]">
                           <h3 className="font-bold text-lg mb-2">{waypoint.name}</h3>
                           
                           <div className="space-y-2 text-sm">
@@ -950,10 +1146,14 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                               <strong>Order:</strong> {waypoint.order === 0 ? 'Start Location' : `Stop #${waypoint.order}`}
                             </div>
                             
+                            <div>
+                              <strong>Coordinates:</strong> {waypoint.position[0].toFixed(4)}, {waypoint.position[1].toFixed(4)}
+                            </div>
+                            
                             {waypoint.type !== 'start' && waypoint.place && (
                               <>
                                 <div>
-                                  <strong>Location:</strong> {waypoint.place.city}, {waypoint.place.state}
+                                  <strong>Location:</strong> {waypoint.place.city || 'Unknown'}, {waypoint.place.state || 'Unknown'}
                                 </div>
                                 <div>
                                   <strong>Category:</strong> {waypoint.category}
@@ -1014,23 +1214,24 @@ const MapViewPage = ({ isConnected, onRetry }) => {
 
                 {/* Regular Mode - Show All Places */}
                 {!tripMode && filteredPlaces.map((place, index) => {
-                  const coords = safeParseCoordinates(place.location);
+                  const coords = safeParseCoordinates(place);
                   if (!coords) return null;
                   
                   return (
                     <Marker
-                      key={place.id || index}
+                      key={place.id || place._id || index}
                       position={coords}
                       icon={createRegularIcon(place)}
                     >
                       <Popup>
-                        <div className="min-w-[200px]">
+                        <div className="min-w-[250px]">
                           <h3 className="font-bold text-lg mb-2">{place.name}</h3>
                           <div className="space-y-1 text-sm">
-                            <div><strong>Location:</strong> {place.city}, {place.state}</div>
-                            <div><strong>Category:</strong> {place.category}</div>
-                            <div><strong>Rating:</strong> {place.rating}</div>
+                            <div><strong>Location:</strong> {place.city || 'Unknown'}, {place.state || 'Unknown'}</div>
+                            <div><strong>Category:</strong> {place.category || 'Unknown'}</div>
+                            <div><strong>Rating:</strong> {place.rating || 'N/A'}</div>
                             <div><strong>Visit Duration:</strong> {place.averageVisitDuration || 90} mins</div>
+                            <div><strong>Coordinates:</strong> {coords[0].toFixed(4)}, {coords[1].toFixed(4)}</div>
                             {place.entryFee && (
                               <div><strong>Entry Fee:</strong> ₹{place.entryFee.indian || place.entryFee.amount || 0}</div>
                             )}
@@ -1101,15 +1302,15 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                   </div>
                 </div>
 
-                {/* Map Technology Info */}
+                {/* Coordinate Status */}
                 <div className="bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-md border">
                   <div className="text-sm text-gray-700">
                     <div className="flex items-center space-x-2 mb-1">
                       <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span>OpenStreetMap</span>
+                      <span>Coordinates Validated</span>
                     </div>
                     <div className="text-xs text-gray-500">
-                      Real-Time • Interactive • Free
+                      {tripMode ? `${tripWaypoints.length} waypoints` : `${filteredPlaces.length} places`} • OpenStreetMap
                     </div>
                   </div>
                 </div>
@@ -1127,7 +1328,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                 Trip Timeline & Progress
               </h3>
               <div className="text-sm text-gray-600">
-                {tripData?.startLocation.name} • Auto-progress: 40s intervals
+                {tripData?.startLocation?.name || 'Unknown Start'} • Auto-progress: 40s intervals
               </div>
             </div>
             
@@ -1179,9 +1380,19 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                       
                       <div className="text-sm text-gray-600 mt-1">
                         {waypoint.type === 'start' ? (
-                          waypoint.description
+                          <>
+                            {waypoint.description}
+                            <div className="text-xs text-gray-500 mt-1">
+                              📍 {waypoint.position[0].toFixed(4)}, {waypoint.position[1].toFixed(4)}
+                            </div>
+                          </>
                         ) : (
-                          `${waypoint.place?.city}, ${waypoint.place?.state} • ${waypoint.visitDuration} min visit • ⭐ ${waypoint.rating || 'N/A'}`
+                          <>
+                            {waypoint.place?.city || 'Unknown'}, {waypoint.place?.state || 'Unknown'} • {waypoint.visitDuration} min visit • ⭐ {waypoint.rating || 'N/A'}
+                            <div className="text-xs text-gray-500 mt-1">
+                              📍 {waypoint.position[0].toFixed(4)}, {waypoint.position[1].toFixed(4)}
+                            </div>
+                          </>
                         )}
                       </div>
 
@@ -1320,6 +1531,12 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                     <div>
                       <strong>Algorithm:</strong> {tripData?.algorithm || 'AI-Optimized'}
                     </div>
+                    <div>
+                      <strong>Coordinate System:</strong> WGS84 (GPS)
+                    </div>
+                    <div>
+                      <strong>Valid Waypoints:</strong> {tripWaypoints.length}
+                    </div>
                   </>
                 ) : (
                   <>
@@ -1328,6 +1545,12 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                     </div>
                     <div>
                       <strong>Total Places:</strong> {places.length}
+                    </div>
+                    <div>
+                      <strong>Coordinate System:</strong> WGS84 (GPS)
+                    </div>
+                    <div>
+                      <strong>Validated Places:</strong> {filteredPlaces.length}
                     </div>
                   </>
                 )}
@@ -1402,11 +1625,16 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                       <span className="font-medium text-blue-800">Journey Starting Point</span>
                     </div>
                     <p className="text-sm text-blue-700">
-                      {tripData?.startLocation.name}
+                      {tripData?.startLocation?.name || 'Unknown Location'}
                     </p>
                     <p className="text-xs text-blue-600">
                       All distances calculated from this location
                     </p>
+                    {tripWaypoints[0] && (
+                      <p className="text-xs text-blue-500 mt-1">
+                        📍 {tripWaypoints[0].position[0].toFixed(4)}, {tripWaypoints[0].position[1].toFixed(4)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </>
@@ -1425,14 +1653,14 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                   
                   <div className="text-center p-4 bg-purple-50 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600">
-                      {[...new Set(places.map(p => p.state))].length}
+                      {[...new Set(places.map(p => p.state).filter(Boolean))].length}
                     </div>
                     <div className="text-sm text-purple-800">States</div>
                   </div>
                   
                   <div className="text-center p-4 bg-orange-50 rounded-lg">
                     <div className="text-2xl font-bold text-orange-600">
-                      {[...new Set(places.map(p => p.category))].length}
+                      {[...new Set(places.map(p => p.category).filter(Boolean))].length}
                     </div>
                     <div className="text-sm text-orange-800">Categories</div>
                   </div>
@@ -1447,6 +1675,11 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                   <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                     <span className="text-gray-600">Last Updated:</span>
                     <span className="font-semibold">{getCurrentDateTime().time}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <span className="text-gray-600">Coordinate Format:</span>
+                    <span className="font-semibold">Latitude, Longitude</span>
                   </div>
                 </div>
               </>
@@ -1466,7 +1699,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                   Ready to Start Your Optimized Journey!
                 </h3>
                 <p className="text-gray-700 mb-4">
-                  Your trip is planned with {tripWaypoints.length} stops starting from {tripData?.startLocation.name}. 
+                  Your trip is planned with {tripWaypoints.length} stops starting from {tripData?.startLocation?.name || 'your selected location'}. 
                   The map will automatically move to each location every 40 seconds, showing real-time progress 
                   until all destinations are marked as visited.
                 </p>
@@ -1477,7 +1710,7 @@ const MapViewPage = ({ isConnected, onRetry }) => {
                   </div>
                   <div className="flex items-center gap-2 text-green-700">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span>Real-time date/time based planning</span>
+                    <span>Real-time coordinate validation</span>
                   </div>
                   <div className="flex items-center gap-2 text-purple-700">
                     <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
@@ -1497,18 +1730,77 @@ const MapViewPage = ({ isConnected, onRetry }) => {
               <div>
                 <h4 className="font-medium text-red-800">Trip Route Error</h4>
                 <p className="text-red-700 mt-1">
-                  Unable to load trip route. This could be due to invalid coordinates in your selected places.
+                  Unable to load trip route. This could be due to:
+                </p>
+                <ul className="text-red-600 mt-2 text-sm list-disc list-inside">
+                  <li>Invalid coordinates in your selected places</li>
+                  <li>Missing starting location data</li>
+                  <li>Corrupted trip data in session storage</li>
+                  <li>Trip data not properly saved from Trip Planner</li>
+                </ul>
+                <div className="mt-3 space-x-3">
+                  <button
+                    onClick={() => navigate('/trip-planner')}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Return to Trip Planner
+                  </button>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Reload Page
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* No Trip Data Warning */}
+        {tripMode && !tripData && !loading && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="text-amber-500 flex-shrink-0 mt-0.5" size={20} />
+              <div>
+                <h4 className="font-medium text-amber-800">No Trip Data Found</h4>
+                <p className="text-amber-700 mt-1">
+                  We couldn't find any trip data to display. This usually happens when:
+                </p>
+                <ul className="text-amber-600 mt-2 text-sm list-disc list-inside">
+                  <li>You navigated directly to this URL without creating a trip</li>
+                  <li>Your session expired or data was cleared</li>
+                  <li>There was an issue saving your trip data</li>
+                </ul>
+                <p className="text-amber-700 mt-2 text-sm">
+                  Please create a new trip from the Trip Planner to see your route on the map.
                 </p>
                 <button
                   onClick={() => navigate('/trip-planner')}
-                  className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                  className="mt-3 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
                 >
-                  Return to Trip Planner
+                  Go to Trip Planner
                 </button>
               </div>
             </div>
           </div>
         )}
+
+        {/* Coordinate Validation Info */}
+        <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="text-green-600" size={20} />
+            <div>
+              <h4 className="font-medium text-gray-800">Enhanced Coordinate Validation & Trip Data Handling</h4>
+              <p className="text-gray-600 text-sm mt-1">
+                {tripMode 
+                  ? `All ${tripWaypoints.length} trip waypoints have been validated with GPS coordinates.`
+                  : `All ${filteredPlaces.length} visible places have validated coordinates in WGS84 format.`
+                } Multiple coordinate formats and storage methods are supported for maximum compatibility.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

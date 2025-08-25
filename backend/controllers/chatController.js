@@ -42,7 +42,7 @@ const chatWithAI = async (req, res) => {
     console.log('📤 South Indian Guide Controller - Processing message:', message.substring(0, 100) + '...');
 
     // Get the Gemini model
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
     // Build context for the AI
     const systemContext = await buildSouthIndianSystemContext(context);
@@ -135,7 +135,7 @@ const getTravelSuggestions = async (req, res) => {
       });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
     const prompt = `You are a warm, friendly South Indian local guide who knows every corner of India like family!
 
@@ -238,7 +238,7 @@ const getPlaceInfo = async (req, res) => {
       });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
     let contextInfo = '';
     if (place) {

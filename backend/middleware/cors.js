@@ -212,7 +212,7 @@ async function generateGeminiItinerary(route, geminiAnalysis, preferences, const
       };
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     
     const itineraryPrompt = `Create a detailed day itinerary for this optimized route:
 
@@ -507,7 +507,7 @@ async function enrichPlacesFromDatabase(inputPlaces) {
 
 // Get Gemini AI analysis and recommendations
 async function getGeminiTripAnalysis(places, preferences, constraints) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
   
   // Calculate geographic spread for algorithm selection
   const coordinates = places.map(p => p.location);
@@ -717,7 +717,7 @@ function selectDefaultAlgorithm(placeCount, spread) {
 
 // Generate AI suggestions for different trip types
 async function generateAISuggestions(places, criteria) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
   const suggestionsPrompt = `Create 3 different trip suggestions from these South Indian places:
 

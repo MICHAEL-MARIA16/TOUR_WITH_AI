@@ -1,4 +1,4 @@
-// Updated server.js - Add map routes
+// Updated server.js - Fix CORS Configuration
 
 const express = require('express');
 const cors = require('cors');
@@ -14,7 +14,7 @@ const routeRoutes = require('./routes/routes');
 const chatRoutes = require('./routes/chat');
 const tripRoutes = require('./routes/trips');
 const distanceRoutes = require('./routes/distance');
-const mapRoutes = require('./routes/map'); // ADD THIS LINE
+const mapRoutes = require('./routes/map');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,14 +46,40 @@ const intensiveLimiter = rateLimit({
   }
 });
 
-// CORS configuration - MUST come before routes
+// ✅ FIXED CORS CONFIGURATION
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001', 
+      'https://tour-with-ai-16.vercel.app',
+      'https://tour-with-ai.vercel.app',
+      // Add your production domain here
+      process.env.FRONTEND_URL
+    ].filter(Boolean); // Remove any undefined values
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      // For development, be more permissive
+      if (process.env.NODE_ENV === 'development') {
+        return callback(null, true);
+      }
+      
+      console.log('❌ CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
+
 app.use(cors(corsOptions));
 
 // Body parsing middleware - MUST come before routes
@@ -64,36 +90,33 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   const ip = req.ip || req.connection.remoteAddress;
-  console.log(`[${timestamp}] ${req.method} ${req.url} - IP: ${ip}`);
+  const origin = req.get('origin') || 'no-origin';
+  console.log(`[${timestamp}] ${req.method} ${req.url} - IP: ${ip} - Origin: ${origin}`);
   next();
 });
-
-// Apply general rate limiting to all API routes
-//app.use('/api/', rateLimit({
-  //windowMs: 15 * 60 * 1000,
-  //max: 200,
-  //message: {
-    //error: 'Too many requests from this IP, please try again later.',
-    //retryAfter: '15 minutes'
- // }
-//}));
 
 // Apply intensive rate limiting only to specific optimization endpoints
 app.use('/api/trips', intensiveLimiter, tripRoutes);
 app.use('/api/routes', intensiveLimiter, routeRoutes);
 app.set('trust proxy', 1);
 
-// --- ✅ ADD THIS CODE BLOCK HERE ---
 // Root URL welcome message to confirm the server is running
 app.get('/', (req, res) => {
   res.status(200).json({
     message: 'Welcome to the Tour With AI API!',
     status: 'Server is running successfully.',
-    documentation: '/api/docs'
+    documentation: '/api/docs',
+    cors: {
+      enabled: true,
+      allowedOrigins: process.env.NODE_ENV === 'development' 
+        ? ['localhost:3000', 'localhost:3001', 'vercel.app domains'] 
+        : ['vercel.app domains'],
+      developmentMode: process.env.NODE_ENV === 'development'
+    }
   });
 });
 
-// Health check endpoint
+// Health check endpoint with enhanced CORS info
 app.get('/api/health', async (req, res) => {
   try {
     const mongoose = require('mongoose');
@@ -112,6 +135,11 @@ app.get('/api/health', async (req, res) => {
       success: true,
       database: dbStatus === 1 ? 'connected' : 'disconnected',
       placesInDatabase: placeCount,
+      cors: {
+        origin: req.get('origin') || 'no-origin',
+        allowed: true,
+        environment: process.env.NODE_ENV || 'development'
+      },
       features: {
         leafletMaps: true,
         openStreetMap: true,
@@ -135,7 +163,7 @@ app.use('/api/routes', routeRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/distance', distanceRoutes);
-app.use('/api/map', mapRoutes); // ADD THIS LINE
+app.use('/api/map', mapRoutes);
 
 // API documentation endpoint
 app.get('/api/docs', (req, res) => {
@@ -144,6 +172,13 @@ app.get('/api/docs', (req, res) => {
     version: '2.1.0',
     description: 'AI-powered travel planning with Leaflet.js + OpenStreetMap integration',
     baseUrl: `${req.protocol}://${req.get('host')}/api`,
+    cors: {
+      enabled: true,
+      allowedOrigins: process.env.NODE_ENV === 'development' 
+        ? ['http://localhost:3000', 'http://localhost:3001', 'https://tour-with-ai-16.vercel.app']
+        : ['https://tour-with-ai-16.vercel.app'],
+      developmentMode: process.env.NODE_ENV === 'development'
+    },
     mappingTechnology: {
       frontend: 'Leaflet.js',
       tiles: 'OpenStreetMap',
@@ -224,6 +259,11 @@ app.get('/api/test/leaflet', (req, res) => {
   res.json({
     success: true,
     message: 'Leaflet.js + OpenStreetMap integration ready!',
+    cors: {
+      origin: req.get('origin') || 'no-origin',
+      userAgent: req.get('user-agent'),
+      allowed: true
+    },
     features: {
       mapping: 'Leaflet.js',
       tiles: 'OpenStreetMap',
@@ -263,7 +303,11 @@ app.get('/api/debug/places', async (req, res) => {
         }
       })),
       message: `Found ${count} places in database`,
-      leafletReady: true
+      leafletReady: true,
+      cors: {
+        origin: req.get('origin') || 'no-origin',
+        allowed: true
+      }
     });
   } catch (error) {
     res.status(500).json({
@@ -291,8 +335,20 @@ app.use((err, req, res, next) => {
     error: err.message,
     stack: err.stack,
     url: req.originalUrl,
-    method: req.method
+    method: req.method,
+    origin: req.get('origin')
   });
+
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      success: false,
+      message: 'CORS policy violation',
+      origin: req.get('origin'),
+      allowedOrigins: process.env.NODE_ENV === 'development' 
+        ? ['http://localhost:3000', 'http://localhost:3001', 'https://tour-with-ai-16.vercel.app']
+        : ['https://tour-with-ai-16.vercel.app']
+    });
+  }
 
   if (err.name === 'ValidationError') {
     return res.status(400).json({
@@ -312,7 +368,18 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(`🚀 TourWithAI Backend running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  console.log(`🌐 CORS enabled for:`);
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`   - http://localhost:3000 (development)`);
+    console.log(`   - http://localhost:3001 (development)`);
+    console.log(`   - https://tour-with-ai-16.vercel.app (production)`);
+    console.log(`   - All origins in development mode`);
+  } else {
+    console.log(`   - https://tour-with-ai-16.vercel.app`);
+    console.log(`   - ${process.env.FRONTEND_URL || 'Not set'}`);
+  }
+  
   console.log(`🗺️  Leaflet.js + OpenStreetMap: ENABLED`);
   console.log(`📝 API Documentation: http://localhost:${PORT}/api/docs`);
   console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);

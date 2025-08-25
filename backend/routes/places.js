@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const Place = require('../models/Place');
+//const { generateDetailedPlaceInfo } = require('../services/geminiService');
 
 // GET /api/places - Get all places with optional filtering
 router.get('/', async (req, res) => {

@@ -203,7 +203,7 @@ async function getGeminiTripAnalysis(places, preferences, constraints) {
   }
   
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     
     // Calculate geographic spread for algorithm selection
     const coordinates = places.map(p => p.location).filter(loc => loc && loc.latitude && loc.longitude);
@@ -403,7 +403,7 @@ async function generateGeminiItinerary(route, geminiAnalysis, preferences, const
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     
     const itineraryPrompt = `Create a detailed day itinerary for this optimized South Indian route:
 
@@ -1082,7 +1082,7 @@ const generateAlgorithmExplanation = async (req, res) => {
 
 // Generate Gemini AI Algorithm Explanation
 async function generateGeminiAlgorithmExplanation(route, algorithm, metrics, preferences, startingLocation, originalPlaces, level) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
   const algorithmDescriptions = {
     'advancedGreedy': 'Smart Timing-Aware Greedy Algorithm',
@@ -1611,7 +1611,7 @@ async function generateAISuggestions(places, criteria) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
     const suggestionsPrompt = `Create 3 different trip suggestions from these South Indian places:
 

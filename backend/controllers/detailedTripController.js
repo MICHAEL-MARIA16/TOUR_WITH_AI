@@ -11,7 +11,7 @@ const distanceCalculator = new DistanceCalculator();
 
 class DetailedTripController {
   constructor() {
-    this.model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    this.model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     
     // Bind methods to preserve 'this' context
     this.generateDetailedPlan = this.generateDetailedPlan.bind(this);
